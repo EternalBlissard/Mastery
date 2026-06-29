@@ -26,9 +26,13 @@ function humanProgressLabel(
   step: string | null | undefined,
   status: string | null | undefined,
   generating: boolean,
+  failed = false,
 ): string {
   if (status === "done") {
-    return generating ? "Generating cited questions" : "Ready to study";
+    if (generating) {
+      return "Generating cited questions";
+    }
+    return failed ? "Couldn't generate questions" : "Ready to study";
   }
   if (status === "error") {
     return "Something went wrong";
@@ -53,6 +57,7 @@ export default function UploadPage() {
   const [job, setJob] = useState<JobStatus | null>(null);
   const [generating, setGenerating] = useState(false);
   const [itemCount, setItemCount] = useState(0);
+  const [genFailed, setGenFailed] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,11 +82,20 @@ export default function UploadPage() {
     (gid: string) => {
       stopGenPolling();
       setGenerating(true);
+      setGenFailed(false);
       setItemCount(0);
 
       let polls = 0;
       let lastCount = -1;
       let stableFor = 0;
+
+      const finish = (count: number) => {
+        stopGenPolling();
+        setGenerating(false);
+        // Ended with no questions → generation failed (e.g. Bedrock error); offer a retry instead
+        // of a dead-end "ready" that links to an empty study session.
+        setGenFailed(count === 0);
+      };
 
       const poll = async () => {
         polls += 1;
@@ -95,17 +109,14 @@ export default function UploadPage() {
             lastCount = count;
             // Done once questions exist and the count has settled, or we hit the time cap.
             if ((count > 0 && stableFor >= GEN_STABLE_POLLS) || polls >= GEN_MAX_POLLS) {
-              stopGenPolling();
-              setGenerating(false);
+              finish(count);
             }
           } else if (polls >= GEN_MAX_POLLS) {
-            stopGenPolling();
-            setGenerating(false);
+            finish(lastCount < 0 ? 0 : lastCount);
           }
         } catch {
           if (polls >= GEN_MAX_POLLS) {
-            stopGenPolling();
-            setGenerating(false);
+            finish(lastCount < 0 ? 0 : lastCount);
           }
         }
       };
@@ -117,6 +128,38 @@ export default function UploadPage() {
     },
     [stopGenPolling],
   );
+
+  // Recovery when generation produced nothing: re-run generation for the goal, then resume polling.
+  const retryGeneration = useCallback(async () => {
+    const gid = goalId.trim();
+    if (!gid) {
+      return;
+    }
+    setError(null);
+    setGenFailed(false);
+    setGenerating(true);
+    const topic =
+      file?.name?.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "core concepts and key terms";
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalId: gid, topic }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(body?.error ?? "Couldn't generate questions");
+        setGenerating(false);
+        setGenFailed(true);
+        return;
+      }
+      startGenerationPolling(gid);
+    } catch {
+      setError("Network error while retrying generation");
+      setGenerating(false);
+      setGenFailed(true);
+    }
+  }, [goalId, file, startGenerationPolling]);
 
   useEffect(
     () => () => {
@@ -143,6 +186,7 @@ export default function UploadPage() {
     setJobId(null);
     setDocumentId(null);
     setGenerating(false);
+    setGenFailed(false);
     setItemCount(0);
     stopGenPolling();
   }, [stopGenPolling]);
@@ -212,6 +256,7 @@ export default function UploadPage() {
     setError(null);
     setJob(null);
     setGenerating(false);
+    setGenFailed(false);
     setItemCount(0);
     stopPolling();
     stopGenPolling();
@@ -246,7 +291,8 @@ export default function UploadPage() {
   const progressPct = job?.progressPct ?? 0;
   const isTerminal = job?.status === "done" || job?.status === "error";
   const generationActive = job?.status === "done" && generating;
-  const studyReady = job?.status === "done" && !generating;
+  const studyReady = job?.status === "done" && !generating && (itemCount > 0 || !genFailed);
+  const generationFailed = job?.status === "done" && !generating && genFailed;
 
   return (
     <main
@@ -381,7 +427,7 @@ export default function UploadPage() {
             }}
           >
             <p style={{ color: "rgba(255,255,255,.72)", fontWeight: 700, margin: "0 0 16px" }}>
-              {humanProgressLabel(job?.step, job?.status, generating)}
+              {humanProgressLabel(job?.step, job?.status, generating, genFailed)}
             </p>
 
             <AnimatedProgressBar
@@ -399,7 +445,7 @@ export default function UploadPage() {
               }}
             >
               <span style={{ color: "rgba(255,255,255,.72)", fontSize: 14 }}>
-                {humanProgressLabel(job?.step, job?.status, generating)}
+                {humanProgressLabel(job?.step, job?.status, generating, genFailed)}
               </span>
               <span style={{ color: "#34B8FF", fontWeight: 700 }}>
                 {generationActive
@@ -436,6 +482,30 @@ export default function UploadPage() {
                 >
                   Start studying →
                 </a>
+              </>
+            ) : null}
+
+            {generationFailed ? (
+              <>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: "20px 0 12px" }}>
+                  Your PDF was processed, but we couldn&apos;t generate questions from it. Try again
+                  — if it keeps failing, the document may not have enough extractable text.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void retryGeneration()}
+                  style={{
+                    background: "#34B8FF",
+                    border: "none",
+                    borderRadius: 14,
+                    color: "#07101D",
+                    cursor: "pointer",
+                    fontWeight: 800,
+                    padding: "14px 20px",
+                  }}
+                >
+                  Retry generation
+                </button>
               </>
             ) : null}
           </aside>
