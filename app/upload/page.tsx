@@ -2,6 +2,7 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
 import {
   useCallback,
   useEffect,
@@ -17,6 +18,22 @@ type JobStatus = {
 };
 
 const POLL_MS = 2000;
+
+function humanProgressLabel(step: string | null | undefined, status: string | null | undefined): string {
+  if (status === "done") {
+    return "Ready to study";
+  }
+  if (status === "error") {
+    return "Something went wrong";
+  }
+  const labels: Record<string, string> = {
+    fetching: "Uploading",
+    chunking: "Reading pages",
+    embedding: "Generating study material",
+    complete: "Preparing questions",
+  };
+  return labels[step ?? ""] ?? "Processing your PDF";
+}
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -155,20 +172,17 @@ export default function UploadPage() {
         minHeight: "100vh",
         padding: "48px 24px",
         background:
-          "radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32rem), #08111f",
+          "radial-gradient(circle at top left, rgba(52, 184, 255, 0.18), transparent 32rem), #07101D",
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 720 }}>
         <MasteryNav activeHref="/upload" />
 
-        <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
-          PHASE 2 INGESTION
-        </p>
-        <h1 style={{ fontSize: 40, letterSpacing: "-0.06em", margin: "12px 0 8px" }}>
+        <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.05em", margin: "0 0 8px" }}>
           Upload lecture PDF
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: 32 }}>
-          File goes to S3, then an async worker parses, chunks, and embeds it. Poll job progress below.
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, lineHeight: 1.6, marginBottom: 32 }}>
+          Drop your lecture notes. We&apos;ll turn them into practice questions linked to your pages.
         </p>
 
         <div style={{ display: "grid", gap: 16, marginBottom: 24 }}>
@@ -178,6 +192,7 @@ export default function UploadPage() {
         <div
           role="button"
           tabIndex={0}
+          className="mastery-card"
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);
@@ -209,18 +224,38 @@ export default function UploadPage() {
             style={{ display: "none" }}
             onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
           />
-          <p style={{ margin: 0, fontWeight: 700 }}>{file ? file.name : "Drag & drop a PDF here"}</p>
-          <p style={{ color: "#94a3b8", fontSize: 14, margin: "8px 0 0" }}>
-            or click to browse
+          <p style={{ fontSize: 32, margin: "0 0 12px" }}>📄</p>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 18 }}>
+            {file ? file.name : "Drop lecture PDF"}
           </p>
+          <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: "8px 0 16px" }}>
+            Supports PDF · Up to 100 MB
+          </p>
+          {!file ? (
+            <span
+              style={{
+                background: "rgba(52, 184, 255, 0.12)",
+                border: "1px solid rgba(52, 184, 255, 0.35)",
+                borderRadius: 12,
+                color: "#34B8FF",
+                display: "inline-block",
+                fontSize: 14,
+                fontWeight: 700,
+                padding: "10px 16px",
+              }}
+            >
+              Browse files
+            </span>
+          ) : null}
         </div>
 
         <button
           type="button"
+          className="mastery-btn-primary"
           onClick={() => void handleUpload()}
           disabled={uploading || !file}
           style={{
-            background: uploading ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
+            background: uploading ? "rgba(52, 184, 255, 0.35)" : "#34B8FF",
             border: "none",
             borderRadius: 12,
             color: "#08111f",
@@ -231,8 +266,21 @@ export default function UploadPage() {
             width: "100%",
           }}
         >
-          {uploading ? "Uploading…" : "Upload & process"}
+          {uploading ? "Uploading…" : "Upload PDF"}
         </button>
+
+        {!file && !uploading && !job ? (
+          <p
+            style={{
+              color: "rgba(255,255,255,.45)",
+              fontSize: 15,
+              marginTop: 24,
+              textAlign: "center",
+            }}
+          >
+            No lecture uploaded. Drop your first PDF.
+          </p>
+        ) : null}
 
         {error ? (
           <p style={{ color: "#f87171", marginTop: 16 }} role="alert">
@@ -250,36 +298,15 @@ export default function UploadPage() {
               padding: 24,
             }}
           >
-            <p style={{ color: "#94a3b8", margin: "0 0 8px" }}>Ingestion job</p>
-            {jobId ? (
-              <p style={{ fontSize: 13, color: "#cbd5e1", margin: "0 0 4px", wordBreak: "break-all" }}>
-                jobId: {jobId}
-              </p>
-            ) : null}
-            {documentId ? (
-              <p style={{ fontSize: 13, color: "#cbd5e1", margin: "0 0 16px", wordBreak: "break-all" }}>
-                documentId: {documentId}
-              </p>
-            ) : null}
+            <p style={{ color: "rgba(255,255,255,.72)", fontWeight: 700, margin: "0 0 16px" }}>
+              {humanProgressLabel(job?.step, job?.status)}
+            </p>
 
-            <div
-              aria-label="Ingestion progress"
-              style={{
-                background: "rgba(2, 6, 23, 0.58)",
-                borderRadius: 999,
-                height: 12,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  background: isTerminal && job?.status === "error" ? "#f87171" : "#38bdf8",
-                  height: "100%",
-                  transition: "width 0.3s ease",
-                  width: `${Math.min(100, Math.max(0, progressPct))}%`,
-                }}
-              />
-            </div>
+            <AnimatedProgressBar
+              percent={progressPct}
+              active={!isTerminal}
+              height={12}
+            />
 
             <div
               style={{
@@ -289,43 +316,30 @@ export default function UploadPage() {
                 marginTop: 12,
               }}
             >
-              <span style={{ color: "#e2e8f0", fontSize: 14 }}>
-                {job?.step ?? "Waiting for status…"}
+              <span style={{ color: "rgba(255,255,255,.72)", fontSize: 14 }}>
+                {humanProgressLabel(job?.step, job?.status)}
               </span>
-              <span style={{ color: "#38bdf8", fontWeight: 700 }}>{progressPct}%</span>
+              <span style={{ color: "#34B8FF", fontWeight: 700 }}>{progressPct}%</span>
             </div>
-
-            {job?.status ? (
-              <p
-                style={{
-                  color: job.status === "done" ? "#4ade80" : job.status === "error" ? "#f87171" : "#cbd5e1",
-                  fontSize: 14,
-                  marginBottom: 0,
-                  marginTop: 12,
-                }}
-              >
-                Status: {job.status}
-              </p>
-            ) : null}
 
             {job?.status === "done" ? (
               <>
-                <p style={{ color: "#94a3b8", fontSize: 13, margin: "16px 0 8px" }}>
-                  Chunks embedded. Generating cited questions in the background…
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: "20px 0 12px" }}>
+                  Your study material is ready. Start practicing with cited questions.
                 </p>
                 <a
                   href={`/study?goalId=${encodeURIComponent(goalId)}`}
                   style={{
-                    background: "#38bdf8",
-                    borderRadius: 12,
-                    color: "#08111f",
+                    background: "#34B8FF",
+                    borderRadius: 14,
+                    color: "#07101D",
                     display: "inline-block",
-                    fontWeight: 700,
-                    padding: "12px 18px",
+                    fontWeight: 800,
+                    padding: "14px 20px",
                     textDecoration: "none",
                   }}
                 >
-                  Study generated questions →
+                  Start studying →
                 </a>
               </>
             ) : null}

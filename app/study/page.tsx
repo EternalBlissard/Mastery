@@ -2,7 +2,8 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
-import { useCallback, useEffect, useState } from "react";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type StudyItem = {
   id: string;
@@ -39,11 +40,22 @@ type GenerateResponse = {
 
 const TARGET_GENERATED_QUESTIONS = 16;
 
+const RATING_OPTIONS = [
+  { value: 1, label: "Again", hint: "Forgot it" },
+  { value: 2, label: "Hard", hint: "Struggled" },
+  { value: 3, label: "Good", hint: "Got it" },
+  { value: 4, label: "Easy", hint: "Knew it well" },
+] as const;
+
 function formatDue(iso: string | null): string {
   if (!iso) {
-    return "never scheduled";
+    return "not scheduled";
   }
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export default function StudyPage() {
@@ -57,8 +69,10 @@ export default function StudyPage() {
   const [answerResults, setAnswerResults] = useState<Record<string, AnswerResult>>({});
   const [questionStartedAt, setQuestionStartedAt] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [totalInGoal, setTotalInGoal] = useState(0);
+  const [queueMode, setQueueMode] = useState<"due" | "all">("due");
 
-  const loadItems = useCallback(async (id: string) => {
+  const loadItems = useCallback(async (id: string, options?: { all?: boolean }) => {
     const trimmed = id.trim();
     if (!trimmed) {
       setError("goalId is required");
@@ -73,10 +87,22 @@ export default function StudyPage() {
     setAnswerResults({});
     setQuestionStartedAt({});
     setSubmitting({});
+    const useAll = options?.all ?? false;
+    setQueueMode(useAll ? "all" : "due");
 
     try {
-      const res = await fetch(`/api/items?goalId=${encodeURIComponent(trimmed)}`);
-      const body = (await res.json()) as { items?: StudyItem[]; error?: string };
+      const query = new URLSearchParams({ goalId: trimmed });
+      if (useAll) {
+        query.set("all", "1");
+      }
+      const res = await fetch(`/api/items?${query.toString()}`);
+      const body = (await res.json()) as {
+        items?: StudyItem[];
+        totalInGoal?: number;
+        dueNow?: number;
+        queue?: string;
+        error?: string;
+      };
       if (!res.ok) {
         setError(body.error ?? "Failed to load items");
         return;
@@ -84,6 +110,7 @@ export default function StudyPage() {
       const loaded = body.items ?? [];
       const startedAt = Date.now();
       setItems(loaded);
+      setTotalInGoal(body.totalInGoal ?? loaded.length);
       setQuestionStartedAt(Object.fromEntries(loaded.map((item) => [item.id, startedAt])));
     } catch {
       setError("Network error while loading items");
@@ -173,14 +200,11 @@ export default function StudyPage() {
   );
 
   const handleSubmit = useCallback(
-    async (itemId: string) => {
+    async (itemId: string, rating: number) => {
       const selectedKey = selections[itemId];
       if (!selectedKey) {
         return;
       }
-
-      const startedAt = questionStartedAt[itemId] ?? Date.now();
-      const responseMs = Date.now() - startedAt;
 
       setSubmitting((prev) => ({ ...prev, [itemId]: true }));
       setError(null);
@@ -192,7 +216,7 @@ export default function StudyPage() {
           body: JSON.stringify({
             itemId,
             selectedKey,
-            responseMs,
+            rating,
           }),
         });
         const body = (await res.json()) as AnswerResult & { error?: string };
@@ -216,8 +240,32 @@ export default function StudyPage() {
         setSubmitting((prev) => ({ ...prev, [itemId]: false }));
       }
     },
-    [questionStartedAt, selections],
+    [selections],
   );
+
+  const answeredCount = useMemo(
+    () => Object.values(submitted).filter(Boolean).length,
+    [submitted],
+  );
+
+  const sessionStats = useMemo(() => {
+    const results = Object.values(answerResults);
+    const correctCount = results.filter((r) => r.correct).length;
+    const total = items.length;
+    const percent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    const nextDueDates = results
+      .map((r) => r.nextDue)
+      .filter(Boolean)
+      .map((iso) => new Date(iso).getTime());
+    const earliestNext =
+      nextDueDates.length > 0 ? new Date(Math.min(...nextDueDates)) : null;
+
+    return { correctCount, total, percent, earliestNext };
+  }, [answerResults, items.length]);
+
+  const sessionComplete = items.length > 0 && answeredCount === items.length;
+  const minutesRemaining = Math.max(1, Math.ceil((items.length - answeredCount) * 0.75));
+  const sessionProgress = items.length > 0 ? Math.round((answeredCount / items.length) * 100) : 0;
 
   return (
     <main
@@ -225,20 +273,17 @@ export default function StudyPage() {
         minHeight: "100vh",
         padding: "48px 24px",
         background:
-          "radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32rem), #08111f",
+          "radial-gradient(circle at top left, rgba(52, 184, 255, 0.18), transparent 32rem), #07101D",
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 820 }}>
         <MasteryNav activeHref="/study" />
 
-        <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
-          PHASE 3 STUDY
-        </p>
-        <h1 style={{ fontSize: 40, letterSpacing: "-0.06em", margin: "12px 0 8px" }}>
-          Cited practice questions
+        <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.05em", margin: "0 0 8px" }}>
+          Study session
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: 32 }}>
-          Load generated MCQs for a goal. Each question cites the source PDF page.
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, lineHeight: 1.6, marginBottom: 32 }}>
+          Answer practice questions due for review. Every card cites the source page in your notes.
         </p>
 
         <div style={{ marginBottom: 16 }}>
@@ -251,28 +296,62 @@ export default function StudyPage() {
             onClick={() => void loadItems(goalId)}
             disabled={loading || generating || !goalId.trim()}
             style={{
-              alignSelf: "end",
-              background: loading ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
-              border: "none",
-              borderRadius: 12,
-              color: "#08111f",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,.12)",
+              borderRadius: 14,
+              color: "rgba(255,255,255,.72)",
               cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
             }}
           >
-            {loading ? "Loading…" : "Load items"}
+            {loading ? "Loading…" : "Refresh due questions"}
           </button>
+          {queueMode === "due" && totalInGoal > 0 ? (
+            <button
+              type="button"
+              onClick={() => void loadItems(goalId, { all: true })}
+              disabled={loading || generating || !goalId.trim()}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,.12)",
+                borderRadius: 14,
+                color: "rgba(255,255,255,.45)",
+                cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 20px",
+              }}
+            >
+              Browse all ({totalInGoal})
+            </button>
+          ) : null}
+          {queueMode === "all" ? (
+            <button
+              type="button"
+              onClick={() => void loadItems(goalId)}
+              disabled={loading || generating || !goalId.trim()}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(52, 184, 255, 0.35)",
+                borderRadius: 14,
+                color: "#34B8FF",
+                cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 20px",
+              }}
+            >
+              Show due only
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleGenerate(goalId)}
             disabled={loading || generating || !goalId.trim()}
             style={{
-              alignSelf: "end",
               background: "transparent",
-              border: "1px solid rgba(56, 189, 248, 0.6)",
-              borderRadius: 12,
-              color: "#7dd3fc",
+              border: "1px solid rgba(52, 184, 255, 0.35)",
+              borderRadius: 14,
+              color: "#34B8FF",
               cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
@@ -280,22 +359,51 @@ export default function StudyPage() {
           >
             {generating ? "Generating…" : "Generate questions"}
           </button>
-          <a
-            href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId.trim())}` : "/dashboard"}
+        </div>
+
+        {items.length > 0 ? (
+          <div
+            className="mastery-card"
             style={{
-              alignSelf: "end",
-              background: "transparent",
-              border: "1px solid rgba(148, 163, 184, 0.35)",
-              borderRadius: 12,
-              color: "#cbd5e1",
-              fontWeight: 700,
-              padding: "12px 20px",
-              textDecoration: "none",
+              background: "#101827",
+              border: "1px solid rgba(255,255,255,.05)",
+              borderRadius: 20,
+              marginBottom: 28,
+              padding: "20px 24px",
             }}
           >
-            View dashboard →
-          </a>
-        </div>
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <p style={{ fontWeight: 700, margin: 0 }}>
+                Due now — {items.length} review{items.length === 1 ? "" : "s"}
+                {totalInGoal > items.length ? (
+                  <span style={{ color: "rgba(255,255,255,.45)", fontWeight: 600 }}>
+                    {" "}
+                    of {totalInGoal} total
+                  </span>
+                ) : null}
+              </p>
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: 0 }}>
+                ~{minutesRemaining} min remaining
+              </p>
+            </div>
+            <AnimatedProgressBar
+              percent={sessionProgress}
+              active={answeredCount < items.length}
+            />
+            <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: "10px 0 0" }}>
+              {answeredCount} of {items.length} answered
+            </p>
+          </div>
+        ) : null}
 
         {error ? (
           <p style={{ color: "#f87171", marginBottom: 24 }} role="alert">
@@ -304,10 +412,116 @@ export default function StudyPage() {
         ) : null}
 
         {!loading && !generating && !error && goalId.trim() && items.length === 0 ? (
-          <p style={{ color: "#94a3b8" }}>
-            No MCQs found for this goal yet. Generation may still be running after upload — wait a moment
-            and press <strong>Load items</strong>, or press <strong>Generate questions</strong> to build them now.
-          </p>
+          <div
+            style={{
+              background: "#101827",
+              border: "1px solid rgba(255,255,255,.05)",
+              borderRadius: 20,
+              marginBottom: 32,
+              padding: 32,
+              textAlign: "center",
+            }}
+          >
+            <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Nothing due right now.</p>
+            <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>
+              {totalInGoal > 0
+                ? `All ${totalInGoal} questions are scheduled for later. Adaptive review will surface them when they're due.`
+                : "Generate questions from your upload to start your first review session."}
+            </p>
+            {totalInGoal > 0 ? (
+              <a
+                href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId)}` : "/dashboard"}
+                style={{
+                  background: "#34B8FF",
+                  borderRadius: 14,
+                  color: "#07101D",
+                  display: "inline-block",
+                  fontWeight: 800,
+                  padding: "14px 22px",
+                  textDecoration: "none",
+                }}
+              >
+                View readiness →
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleGenerate(goalId)}
+                disabled={generating}
+                style={{
+                  background: "#34B8FF",
+                  border: "none",
+                  borderRadius: 14,
+                  color: "#07101D",
+                  cursor: generating ? "not-allowed" : "pointer",
+                  fontWeight: 800,
+                  padding: "14px 22px",
+                }}
+              >
+                Generate questions
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {sessionComplete ? (
+          <div
+            className="mastery-card"
+            style={{
+              background: "#161F31",
+              border: "1px solid rgba(52, 184, 255, 0.25)",
+              borderRadius: 20,
+              marginBottom: 32,
+              padding: 28,
+            }}
+          >
+            <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
+              SESSION COMPLETE
+            </p>
+            <p style={{ fontSize: 24, fontWeight: 800, margin: "0 0 16px" }}>Nice work today</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 16 }}>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Questions</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>{sessionStats.total}</p>
+              </div>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Correct</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>
+                  {sessionStats.correctCount}
+                </p>
+              </div>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Score</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>{sessionStats.percent}%</p>
+              </div>
+            </div>
+            <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>
+              Next review:{" "}
+              <strong>
+                {sessionStats.earliestNext
+                  ? sessionStats.earliestNext.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "scheduled after your first answers"}
+              </strong>
+            </p>
+            <a
+              href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId)}` : "/dashboard"}
+              className="mastery-btn-primary"
+              style={{
+                background: "#34B8FF",
+                borderRadius: 14,
+                color: "#07101D",
+                display: "inline-block",
+                fontWeight: 800,
+                padding: "12px 20px",
+                textDecoration: "none",
+              }}
+            >
+              View readiness →
+            </a>
+          </div>
         ) : null}
 
         <div style={{ display: "grid", gap: 24 }}>
@@ -317,10 +531,12 @@ export default function StudyPage() {
             const selected = selections[item.id] ?? "";
             const result = answerResults[item.id];
             const isCorrect = result?.correct ?? selected === item.answer_key;
+            const selectedWrong = Boolean(selected) && selected !== item.answer_key;
 
             return (
               <article
                 key={item.id}
+                className="mastery-card"
                 style={{
                   background: "rgba(15, 23, 42, 0.82)",
                   border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -407,24 +623,45 @@ export default function StudyPage() {
                 </fieldset>
 
                 {!isSubmitted ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmit(item.id)}
-                    disabled={!selected || isSubmitting}
-                    style={{
-                      background:
-                        !selected || isSubmitting ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
-                      border: "none",
-                      borderRadius: 12,
-                      color: "#08111f",
-                      cursor: !selected || isSubmitting ? "not-allowed" : "pointer",
-                      fontWeight: 700,
-                      marginTop: 18,
-                      padding: "12px 18px",
-                    }}
-                  >
-                    {isSubmitting ? "Saving…" : "Check answer"}
-                  </button>
+                  <div style={{ marginTop: 20 }}>
+                    <p style={{ color: "rgba(255,255,255,.72)", fontSize: 14, margin: "0 0 12px" }}>
+                      {selectedWrong
+                        ? "Incorrect choice — review again soon"
+                        : "How well did you know this?"}
+                    </p>
+                    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+                      {RATING_OPTIONS.map((option) => {
+                        const ratingDisabled =
+                          !selected ||
+                          isSubmitting ||
+                          (selectedWrong && option.value !== 1);
+
+                        return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="mastery-btn-primary"
+                          onClick={() => void handleSubmit(item.id, option.value)}
+                          disabled={ratingDisabled}
+                          style={{
+                            background: ratingDisabled ? "rgba(52, 184, 255, 0.12)" : "#34B8FF",
+                            border: "none",
+                            borderRadius: 12,
+                            color: ratingDisabled ? "rgba(255,255,255,.45)" : "#07101D",
+                            cursor: ratingDisabled ? "not-allowed" : "pointer",
+                            fontWeight: 800,
+                            padding: "12px 10px",
+                          }}
+                        >
+                          <span style={{ display: "block" }}>{option.label}</span>
+                          <span style={{ display: "block", fontSize: 11, fontWeight: 600, marginTop: 2, opacity: 0.8 }}>
+                            {option.hint}
+                          </span>
+                        </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : (
                   <aside
                     style={{
@@ -445,9 +682,25 @@ export default function StudyPage() {
                       {isCorrect ? "Correct" : `Incorrect — answer is ${item.answer_key}`}
                     </p>
                     {result ? (
-                      <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 8px" }}>
-                        Next review: {formatDue(result.nextDue)} (was {formatDue(result.previousDue)})
-                      </p>
+                      <div
+                        style={{
+                          background: "rgba(52, 184, 255, 0.08)",
+                          border: "1px solid rgba(52, 184, 255, 0.25)",
+                          borderRadius: 12,
+                          marginBottom: 12,
+                          padding: 14,
+                        }}
+                      >
+                        <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: "0 0 6px" }}>
+                          Adaptive review scheduled
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,.85)", fontSize: 15, margin: "0 0 4px" }}>
+                          Next review: <strong>{formatDue(result.nextDue)}</strong>
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: 0 }}>
+                          Previously: {formatDue(result.previousDue)}
+                        </p>
+                      </div>
                     ) : null}
                     {item.explanation ? (
                       <p style={{ color: "#cbd5e1", lineHeight: 1.6, margin: 0 }}>

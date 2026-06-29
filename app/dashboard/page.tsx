@@ -2,6 +2,7 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
 import { useCallback, useEffect, useState } from "react";
 
 type DashboardObjective = {
@@ -16,6 +17,7 @@ type DashboardData = {
   dueToday: number;
   questionsCompleted: number;
   coverage: number;
+  currentStreak: number;
   objectives: DashboardObjective[];
 };
 
@@ -80,43 +82,55 @@ export default function DashboardPage() {
         minHeight: "100vh",
         padding: "48px 24px",
         background:
-          "radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32rem), #08111f",
+          "radial-gradient(circle at top left, rgba(52, 184, 255, 0.18), transparent 32rem), #07101D",
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 920 }}>
         <MasteryNav activeHref="/dashboard" />
 
-        <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
-          PHASE 5 MASTERY
-        </p>
-        <h1 style={{ fontSize: 40, letterSpacing: "-0.06em", margin: "12px 0 8px" }}>
-          Focused mastery dashboard
+        <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.05em", margin: "0 0 8px" }}>
+          Exam readiness
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: 32 }}>
-          Readiness, due reviews, completed questions, and PDF coverage per objective — all from live DB state.
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, lineHeight: 1.6, marginBottom: 32 }}>
+          Track how close you are to exam day — what&apos;s due, what you&apos;ve covered, and where to focus next.
         </p>
 
         <div style={{ marginBottom: 16 }}>
           <GoalSelect value={goalId} onChange={handleGoalChange} disabled={loading} />
         </div>
 
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
           <button
             type="button"
             onClick={() => void loadDashboard(goalId)}
             disabled={loading || !goalId.trim()}
             style={{
-              background: loading || !goalId.trim() ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
-              border: "none",
-              borderRadius: 12,
-              color: "#08111f",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,.12)",
+              borderRadius: 14,
+              color: "rgba(255,255,255,.72)",
               cursor: loading || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
             }}
           >
-            {loading ? "Loading…" : "Refresh dashboard"}
+            {loading ? "Loading…" : "Refresh"}
           </button>
+          {data && data.dueToday > 0 ? (
+            <a
+              href={`/study?goalId=${encodeURIComponent(goalId)}`}
+              style={{
+                background: "#34B8FF",
+                borderRadius: 14,
+                color: "#07101D",
+                fontWeight: 800,
+                padding: "12px 22px",
+                textDecoration: "none",
+              }}
+            >
+              Start review →
+            </a>
+          ) : null}
         </div>
 
         {error ? (
@@ -125,8 +139,20 @@ export default function DashboardPage() {
           </p>
         ) : null}
 
+        {!loading && !error && goalId.trim() && !data ? (
+          <p style={{ color: "rgba(255,255,255,.45)" }}>Loading your readiness data…</p>
+        ) : null}
+
         {data ? (
           <>
+            {data.questionsCompleted === 0 ? (
+              <EmptyState
+                title="No questions yet."
+                detail="Upload your first lecture to start tracking readiness."
+                href={`/upload?goalId=${encodeURIComponent(goalId)}`}
+                cta="Upload PDF →"
+              />
+            ) : null}
             <div
               style={{
                 display: "grid",
@@ -138,22 +164,27 @@ export default function DashboardPage() {
               <MetricCard
                 label="Overall readiness"
                 value={formatPercent(data.overallReadiness)}
-                detail="Weighted mean of p_known across objectives"
+                detail="How prepared you are across all objectives"
               />
               <MetricCard
                 label="Due today"
                 value={String(data.dueToday)}
-                detail="Review items due now or earlier"
+                detail="Cards ready for review right now"
               />
               <MetricCard
                 label="Questions completed"
                 value={String(data.questionsCompleted)}
-                detail="Total answers logged"
+                detail="Practice questions you've answered"
               />
               <MetricCard
                 label="Coverage"
                 value={formatPercent(data.coverage)}
-                detail="Objectives with at least one item"
+                detail="Objectives with practice questions from your PDF"
+              />
+              <MetricCard
+                label="Current streak"
+                value={`${data.currentStreak ?? 0} day${(data.currentStreak ?? 0) === 1 ? "" : "s"}`}
+                detail="Consecutive days with at least one review"
               />
             </div>
 
@@ -162,7 +193,12 @@ export default function DashboardPage() {
             </h2>
             <div style={{ display: "grid", gap: 14 }}>
               {data.objectives.length === 0 ? (
-                <p style={{ color: "#94a3b8" }}>No objectives found for this goal.</p>
+                <EmptyState
+                  title="No objectives yet."
+                  detail="Upload a lecture PDF to map questions to exam objectives."
+                  href={`/upload?goalId=${encodeURIComponent(goalId)}`}
+                  cta="Upload PDF →"
+                />
               ) : (
                 data.objectives.map((objective) => (
                   <ObjectiveRow key={objective.id} objective={objective} />
@@ -173,6 +209,48 @@ export default function DashboardPage() {
         ) : null}
       </section>
     </main>
+  );
+}
+
+function EmptyState({
+  title,
+  detail,
+  href,
+  cta,
+}: {
+  title: string;
+  detail: string;
+  href: string;
+  cta: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "#101827",
+        border: "1px solid rgba(255,255,255,.05)",
+        borderRadius: 20,
+        marginBottom: 24,
+        padding: 32,
+        textAlign: "center",
+      }}
+    >
+      <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>{title}</p>
+      <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>{detail}</p>
+      <a
+        href={href}
+        style={{
+          background: "#34B8FF",
+          borderRadius: 14,
+          color: "#07101D",
+          display: "inline-block",
+          fontWeight: 800,
+          padding: "14px 22px",
+          textDecoration: "none",
+        }}
+      >
+        {cta}
+      </a>
+    </div>
   );
 }
 
@@ -187,6 +265,7 @@ function MetricCard({
 }) {
   return (
     <div
+      className="mastery-card"
       style={{
         background: "rgba(15, 23, 42, 0.82)",
         border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -194,7 +273,7 @@ function MetricCard({
         padding: 18,
       }}
     >
-      <div style={{ color: "#38bdf8", fontSize: 30, fontWeight: 800 }}>{value}</div>
+      <div style={{ color: "#34B8FF", fontSize: 30, fontWeight: 800 }}>{value}</div>
       <div style={{ fontWeight: 700 }}>{label}</div>
       <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>{detail}</div>
     </div>
@@ -206,6 +285,7 @@ function ObjectiveRow({ objective }: { objective: DashboardObjective }) {
 
   return (
     <article
+      className="mastery-card"
       style={{
         background: "rgba(15, 23, 42, 0.82)",
         border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -255,18 +335,10 @@ function ObjectiveRow({ objective }: { objective: DashboardObjective }) {
             border: "1px solid rgba(148, 163, 184, 0.18)",
             borderRadius: 999,
             flex: 1,
-            height: 10,
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              background: "linear-gradient(90deg, #38bdf8, #4ade80)",
-              borderRadius: 999,
-              height: "100%",
-              width: `${barWidth}%`,
-            }}
-          />
+          <AnimatedProgressBar percent={barWidth} height={10} />
         </div>
         <span style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700, minWidth: 40 }}>
           {formatPercent(objective.pKnown)}
