@@ -74,6 +74,31 @@ export function scheduleNext(
   };
 }
 
+/** Wrong answers always schedule as Again; correct answers honor explicit rating (min Good). */
+export function resolveRating(
+  correct: boolean,
+  explicitRating?: number,
+  responseMs?: number,
+): Rating {
+  if (!correct) {
+    return Rating.Again;
+  }
+
+  if (
+    explicitRating !== undefined &&
+    Number.isInteger(explicitRating) &&
+    explicitRating >= Rating.Again &&
+    explicitRating <= Rating.Easy
+  ) {
+    if (explicitRating === Rating.Again) {
+      return Rating.Good;
+    }
+    return explicitRating as Rating;
+  }
+
+  return ratingFromAnswer(correct, responseMs);
+}
+
 /** Wrong → Again; correct+slow → Hard; correct → Good; correct+fast → Easy. */
 export function ratingFromAnswer(
   correct: boolean,

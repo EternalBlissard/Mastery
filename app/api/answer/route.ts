@@ -1,7 +1,7 @@
 import { executeDataStatement } from "../../../db/data-api";
 import { getOrCreateUser } from "../../../lib/auth";
 import { applyMasteryUpdate } from "../../../lib/bkt";
-import { Rating, ratingFromAnswer, scheduleNext, type PrevState } from "../../../lib/fsrs";
+import { Rating, resolveRating, scheduleNext, type PrevState } from "../../../lib/fsrs";
 
 export const runtime = "nodejs";
 
@@ -128,21 +128,17 @@ export async function POST(request: Request) {
     let rating: Rating;
     let correct: boolean;
 
-    if (body.rating != null) {
+    if (body.selectedKey != null && body.selectedKey !== "") {
+      correct = body.selectedKey === answerKey;
+      rating = resolveRating(correct, body.rating ?? undefined, body.responseMs);
+    } else if (body.rating != null) {
       if (!isValidRating(body.rating)) {
         return Response.json({ error: "rating must be 1 (Again) through 4 (Easy)" }, { status: 400 });
       }
-      rating = body.rating;
-      correct =
-        body.selectedKey != null && body.selectedKey !== ""
-          ? body.selectedKey === answerKey
-          : rating !== Rating.Again;
+      correct = body.rating !== Rating.Again;
+      rating = resolveRating(correct, body.rating);
     } else {
-      if (body.selectedKey == null || body.selectedKey === "") {
-        return Response.json({ error: "selectedKey or rating is required" }, { status: 400 });
-      }
-      correct = body.selectedKey === answerKey;
-      rating = ratingFromAnswer(correct, body.responseMs);
+      return Response.json({ error: "selectedKey or rating is required" }, { status: 400 });
     }
 
     const now = new Date();

@@ -69,8 +69,10 @@ export default function StudyPage() {
   const [answerResults, setAnswerResults] = useState<Record<string, AnswerResult>>({});
   const [questionStartedAt, setQuestionStartedAt] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [totalInGoal, setTotalInGoal] = useState(0);
+  const [queueMode, setQueueMode] = useState<"due" | "all">("due");
 
-  const loadItems = useCallback(async (id: string) => {
+  const loadItems = useCallback(async (id: string, options?: { all?: boolean }) => {
     const trimmed = id.trim();
     if (!trimmed) {
       setError("goalId is required");
@@ -85,10 +87,22 @@ export default function StudyPage() {
     setAnswerResults({});
     setQuestionStartedAt({});
     setSubmitting({});
+    const useAll = options?.all ?? false;
+    setQueueMode(useAll ? "all" : "due");
 
     try {
-      const res = await fetch(`/api/items?goalId=${encodeURIComponent(trimmed)}`);
-      const body = (await res.json()) as { items?: StudyItem[]; error?: string };
+      const query = new URLSearchParams({ goalId: trimmed });
+      if (useAll) {
+        query.set("all", "1");
+      }
+      const res = await fetch(`/api/items?${query.toString()}`);
+      const body = (await res.json()) as {
+        items?: StudyItem[];
+        totalInGoal?: number;
+        dueNow?: number;
+        queue?: string;
+        error?: string;
+      };
       if (!res.ok) {
         setError(body.error ?? "Failed to load items");
         return;
@@ -96,6 +110,7 @@ export default function StudyPage() {
       const loaded = body.items ?? [];
       const startedAt = Date.now();
       setItems(loaded);
+      setTotalInGoal(body.totalInGoal ?? loaded.length);
       setQuestionStartedAt(Object.fromEntries(loaded.map((item) => [item.id, startedAt])));
     } catch {
       setError("Network error while loading items");
@@ -268,7 +283,7 @@ export default function StudyPage() {
           Study session
         </h1>
         <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, lineHeight: 1.6, marginBottom: 32 }}>
-          Answer practice questions. Every card cites the source page in your notes.
+          Answer practice questions due for review. Every card cites the source page in your notes.
         </p>
 
         <div style={{ marginBottom: 16 }}>
@@ -290,8 +305,44 @@ export default function StudyPage() {
               padding: "12px 20px",
             }}
           >
-            {loading ? "Loading…" : "Refresh questions"}
+            {loading ? "Loading…" : "Refresh due questions"}
           </button>
+          {queueMode === "due" && totalInGoal > 0 ? (
+            <button
+              type="button"
+              onClick={() => void loadItems(goalId, { all: true })}
+              disabled={loading || generating || !goalId.trim()}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,.12)",
+                borderRadius: 14,
+                color: "rgba(255,255,255,.45)",
+                cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 20px",
+              }}
+            >
+              Browse all ({totalInGoal})
+            </button>
+          ) : null}
+          {queueMode === "all" ? (
+            <button
+              type="button"
+              onClick={() => void loadItems(goalId)}
+              disabled={loading || generating || !goalId.trim()}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(52, 184, 255, 0.35)",
+                borderRadius: 14,
+                color: "#34B8FF",
+                cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 20px",
+              }}
+            >
+              Show due only
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleGenerate(goalId)}
@@ -332,7 +383,13 @@ export default function StudyPage() {
               }}
             >
               <p style={{ fontWeight: 700, margin: 0 }}>
-                Today&apos;s goal — {items.length} review{items.length === 1 ? "" : "s"}
+                Due now — {items.length} review{items.length === 1 ? "" : "s"}
+                {totalInGoal > items.length ? (
+                  <span style={{ color: "rgba(255,255,255,.45)", fontWeight: 600 }}>
+                    {" "}
+                    of {totalInGoal} total
+                  </span>
+                ) : null}
               </p>
               <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: 0 }}>
                 ~{minutesRemaining} min remaining
@@ -365,26 +422,45 @@ export default function StudyPage() {
               textAlign: "center",
             }}
           >
-            <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Nothing due today.</p>
+            <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Nothing due right now.</p>
             <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>
-              Generate more questions from your upload, or come back tomorrow.
+              {totalInGoal > 0
+                ? `All ${totalInGoal} questions are scheduled for later. Adaptive review will surface them when they're due.`
+                : "Generate questions from your upload to start your first review session."}
             </p>
-            <button
-              type="button"
-              onClick={() => void handleGenerate(goalId)}
-              disabled={generating}
-              style={{
-                background: "#34B8FF",
-                border: "none",
-                borderRadius: 14,
-                color: "#07101D",
-                cursor: generating ? "not-allowed" : "pointer",
-                fontWeight: 800,
-                padding: "14px 22px",
-              }}
-            >
-              Generate questions
-            </button>
+            {totalInGoal > 0 ? (
+              <a
+                href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId)}` : "/dashboard"}
+                style={{
+                  background: "#34B8FF",
+                  borderRadius: 14,
+                  color: "#07101D",
+                  display: "inline-block",
+                  fontWeight: 800,
+                  padding: "14px 22px",
+                  textDecoration: "none",
+                }}
+              >
+                View readiness →
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleGenerate(goalId)}
+                disabled={generating}
+                style={{
+                  background: "#34B8FF",
+                  border: "none",
+                  borderRadius: 14,
+                  color: "#07101D",
+                  cursor: generating ? "not-allowed" : "pointer",
+                  fontWeight: 800,
+                  padding: "14px 22px",
+                }}
+              >
+                Generate questions
+              </button>
+            )}
           </div>
         ) : null}
 
@@ -455,6 +531,7 @@ export default function StudyPage() {
             const selected = selections[item.id] ?? "";
             const result = answerResults[item.id];
             const isCorrect = result?.correct ?? selected === item.answer_key;
+            const selectedWrong = Boolean(selected) && selected !== item.answer_key;
 
             return (
               <article
@@ -548,22 +625,30 @@ export default function StudyPage() {
                 {!isSubmitted ? (
                   <div style={{ marginTop: 20 }}>
                     <p style={{ color: "rgba(255,255,255,.72)", fontSize: 14, margin: "0 0 12px" }}>
-                      How well did you know this?
+                      {selectedWrong
+                        ? "Incorrect choice — review again soon"
+                        : "How well did you know this?"}
                     </p>
                     <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
-                      {RATING_OPTIONS.map((option) => (
+                      {RATING_OPTIONS.map((option) => {
+                        const ratingDisabled =
+                          !selected ||
+                          isSubmitting ||
+                          (selectedWrong && option.value !== 1);
+
+                        return (
                         <button
                           key={option.value}
                           type="button"
                           className="mastery-btn-primary"
                           onClick={() => void handleSubmit(item.id, option.value)}
-                          disabled={!selected || isSubmitting}
+                          disabled={ratingDisabled}
                           style={{
-                            background: !selected || isSubmitting ? "rgba(52, 184, 255, 0.12)" : "#34B8FF",
+                            background: ratingDisabled ? "rgba(52, 184, 255, 0.12)" : "#34B8FF",
                             border: "none",
                             borderRadius: 12,
-                            color: !selected || isSubmitting ? "rgba(255,255,255,.45)" : "#07101D",
-                            cursor: !selected || isSubmitting ? "not-allowed" : "pointer",
+                            color: ratingDisabled ? "rgba(255,255,255,.45)" : "#07101D",
+                            cursor: ratingDisabled ? "not-allowed" : "pointer",
                             fontWeight: 800,
                             padding: "12px 10px",
                           }}
@@ -573,7 +658,8 @@ export default function StudyPage() {
                             {option.hint}
                           </span>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
