@@ -1,9 +1,53 @@
+import { after } from "next/server";
 import { executeDataStatement } from "../../../db/data-api";
 import { embedText } from "../../../lib/bedrock";
 import { chunkDocument } from "../../../lib/chunk";
 import { getDocumentObject } from "../../../lib/s3";
 
 export const runtime = "nodejs";
+
+function baseUrl(request: Request): string {
+  const host = request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? "http";
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
+
+async function loadGoalForDocument(
+  documentId: string,
+): Promise<{ goalId: string; filename: string } | null> {
+  const result = await executeDataStatement(`
+    SELECT goal_id, filename
+    FROM documents
+    WHERE id = '${documentId}'::uuid
+    LIMIT 1
+  `);
+  const row = result.records?.[0];
+  const goalId = row?.[0]?.stringValue;
+  if (!goalId) {
+    return null;
+  }
+  return { goalId, filename: row?.[1]?.stringValue ?? "document" };
+}
+
+// After ingest completes, batch-generate grounded MCQs so the study page has content.
+// Fire-and-forget — never blocks or fails the ingest job.
+function triggerGeneration(request: Request, goalId: string, filename: string): void {
+  const topic =
+    filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "core concepts and key terms";
+  after(() => {
+    fetch(`${baseUrl(request)}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goalId, topic }),
+    }).catch(() => undefined);
+  });
+}
 
 function sqlString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -140,6 +184,11 @@ export async function POST(request: Request) {
       progressPct: 100,
       error: null,
     });
+
+    const goal = await loadGoalForDocument(documentId).catch(() => null);
+    if (goal) {
+      triggerGeneration(request, goal.goalId, goal.filename);
+    }
 
     return Response.json({ ok: true, jobId, documentId, chunksProcessed: chunks.length });
   } catch (error) {

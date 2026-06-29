@@ -18,6 +18,7 @@ export default function StudyPage() {
   const [goalId, setGoalId] = useState("");
   const [items, setItems] = useState<StudyItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
@@ -57,6 +58,37 @@ export default function StudyPage() {
       void loadItems(fromUrl);
     }
   }, [loadItems]);
+
+  const handleGenerate = useCallback(
+    async (id: string) => {
+      const trimmed = id.trim();
+      if (!trimmed) {
+        setError("goalId is required");
+        return;
+      }
+
+      setGenerating(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goalId: trimmed, topic: "core concepts and key terms" }),
+        });
+        const body = (await res.json()) as { error?: string; generated?: number };
+        if (!res.ok) {
+          setError(body.error ?? "Generation failed");
+          return;
+        }
+        await loadItems(trimmed);
+      } catch {
+        setError("Network error during generation");
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [loadItems],
+  );
 
   const handleSubmit = (itemId: string) => {
     if (!selections[itemId]) {
@@ -105,19 +137,36 @@ export default function StudyPage() {
           <button
             type="button"
             onClick={() => void loadItems(goalId)}
-            disabled={loading || !goalId.trim()}
+            disabled={loading || generating || !goalId.trim()}
             style={{
               alignSelf: "end",
               background: loading ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
               border: "none",
               borderRadius: 12,
               color: "#08111f",
-              cursor: loading || !goalId.trim() ? "not-allowed" : "pointer",
+              cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
             }}
           >
             {loading ? "Loading…" : "Load items"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleGenerate(goalId)}
+            disabled={loading || generating || !goalId.trim()}
+            style={{
+              alignSelf: "end",
+              background: "transparent",
+              border: "1px solid rgba(56, 189, 248, 0.6)",
+              borderRadius: 12,
+              color: "#7dd3fc",
+              cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
+              fontWeight: 700,
+              padding: "12px 20px",
+            }}
+          >
+            {generating ? "Generating…" : "Generate questions"}
           </button>
         </div>
 
@@ -127,8 +176,11 @@ export default function StudyPage() {
           </p>
         ) : null}
 
-        {!loading && !error && goalId.trim() && items.length === 0 ? (
-          <p style={{ color: "#94a3b8" }}>No MCQs found for this goal yet.</p>
+        {!loading && !generating && !error && goalId.trim() && items.length === 0 ? (
+          <p style={{ color: "#94a3b8" }}>
+            No MCQs found for this goal yet. Generation may still be running after upload — wait a moment
+            and press <strong>Load items</strong>, or press <strong>Generate questions</strong> to build them now.
+          </p>
         ) : null}
 
         <div style={{ display: "grid", gap: 24 }}>

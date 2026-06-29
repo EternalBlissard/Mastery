@@ -324,6 +324,28 @@ export default function UploadPage() {
                 Status: {job.status}
               </p>
             ) : null}
+
+            {job?.status === "done" ? (
+              <>
+                <p style={{ color: "#94a3b8", fontSize: 13, margin: "16px 0 8px" }}>
+                  Chunks embedded. Generating cited questions in the background…
+                </p>
+                <a
+                  href={`/study?goalId=${encodeURIComponent(goalId)}`}
+                  style={{
+                    background: "#38bdf8",
+                    borderRadius: 12,
+                    color: "#08111f",
+                    display: "inline-block",
+                    fontWeight: 700,
+                    padding: "12px 18px",
+                    textDecoration: "none",
+                  }}
+                >
+                  Study generated questions →
+                </a>
+              </>
+            ) : null}
           </aside>
         )}
       </section>
