@@ -22,6 +22,23 @@ type AnswerResult = {
   correct: boolean;
 };
 
+type DashboardObjective = {
+  id: string;
+  title: string;
+};
+
+type DashboardResponse = {
+  objectives?: DashboardObjective[];
+  error?: string;
+};
+
+type GenerateResponse = {
+  generated?: number;
+  error?: string;
+};
+
+const TARGET_GENERATED_QUESTIONS = 16;
+
 function formatDue(iso: string | null): string {
   if (!iso) {
     return "never scheduled";
@@ -93,17 +110,58 @@ export default function StudyPage() {
 
       setGenerating(true);
       setError(null);
+
       try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goalId: trimmed, topic: "core concepts and key terms" }),
-        });
-        const body = (await res.json()) as { error?: string; generated?: number };
-        if (!res.ok) {
-          setError(body.error ?? "Generation failed");
+        const dashboardRes = await fetch(`/api/dashboard?goalId=${encodeURIComponent(trimmed)}`);
+        const dashboardBody = (await dashboardRes.json()) as DashboardResponse;
+
+        if (!dashboardRes.ok) {
+          setError(dashboardBody.error ?? "Failed to load objectives");
           return;
         }
+
+        const objectives = dashboardBody.objectives ?? [];
+
+        if (objectives.length === 0) {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ goalId: trimmed, topic: "core concepts and key terms" }),
+          });
+          const body = (await res.json()) as GenerateResponse;
+          if (!res.ok) {
+            setError(body.error ?? "Generation failed");
+            return;
+          }
+        } else {
+          const count = Math.max(1, Math.ceil(TARGET_GENERATED_QUESTIONS / objectives.length));
+          let generated = 0;
+
+          for (const objective of objectives) {
+            const res = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                goalId: trimmed,
+                objectiveId: objective.id,
+                count,
+              }),
+            });
+
+            const body = (await res.json()) as GenerateResponse;
+            if (!res.ok) {
+              setError(body.error ?? `Generation failed for ${objective.title}`);
+              return;
+            }
+
+            generated += body.generated ?? 0;
+          }
+
+          if (generated === 0) {
+            setError("No new mapped questions generated; they may already exist.");
+          }
+        }
+
         await loadItems(trimmed);
       } catch {
         setError("Network error during generation");
