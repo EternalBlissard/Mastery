@@ -35,17 +35,56 @@ async function loadGoalForDocument(
   return { goalId, filename: row?.[1]?.stringValue ?? "document" };
 }
 
-// After ingest completes, batch-generate grounded MCQs so the study page has content.
+const AUTO_GENERATION_TARGET = 16;
+
+async function loadGoalObjectiveIds(goalId: string): Promise<string[]> {
+  const result = await executeDataStatement(`
+    SELECT o.id
+    FROM goals g
+    JOIN objectives o ON o.certification_id = g.certification_id
+    WHERE g.id = '${goalId}'::uuid
+    ORDER BY o.sequence NULLS LAST, o.title
+  `);
+
+  return (result.records ?? [])
+    .map((row) => row[0]?.stringValue)
+    .filter((id): id is string => Boolean(id));
+}
+
+async function postGenerate(url: string, body: unknown): Promise<void> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+}
+
+// After ingest completes, batch-generate grounded MCQs so the study page has objective-mapped content.
 // Fire-and-forget — never blocks or fails the ingest job.
 function triggerGeneration(request: Request, goalId: string, filename: string): void {
-  const topic =
-    filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "core concepts and key terms";
-  after(() => {
-    fetch(`${baseUrl(request)}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goalId, topic }),
-    }).catch(() => undefined);
+  after(async () => {
+    try {
+      const url = `${baseUrl(request)}/api/generate`;
+      const objectiveIds = await loadGoalObjectiveIds(goalId);
+
+      if (objectiveIds.length === 0) {
+        const topic =
+          filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "core concepts and key terms";
+        await postGenerate(url, { goalId, topic });
+        return;
+      }
+
+      const count = Math.max(1, Math.ceil(AUTO_GENERATION_TARGET / objectiveIds.length));
+      for (const objectiveId of objectiveIds) {
+        await postGenerate(url, { goalId, objectiveId, count });
+      }
+    } catch {
+      // Fire-and-forget generation must never fail ingestion.
+    }
   });
 }
 

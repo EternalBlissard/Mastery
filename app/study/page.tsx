@@ -1,7 +1,8 @@
 "use client";
 
 import { MasteryNav } from "../components/MasteryNav";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import GoalSelect from "../components/GoalSelect";
+import { useCallback, useEffect, useState } from "react";
 
 type StudyItem = {
   id: string;
@@ -21,6 +22,23 @@ type AnswerResult = {
   correct: boolean;
 };
 
+type DashboardObjective = {
+  id: string;
+  title: string;
+};
+
+type DashboardResponse = {
+  objectives?: DashboardObjective[];
+  error?: string;
+};
+
+type GenerateResponse = {
+  generated?: number;
+  error?: string;
+};
+
+const TARGET_GENERATED_QUESTIONS = 16;
+
 function formatDue(iso: string | null): string {
   if (!iso) {
     return "never scheduled";
@@ -30,7 +48,6 @@ function formatDue(iso: string | null): string {
 
 export default function StudyPage() {
   const [goalId, setGoalId] = useState("");
-  const [userId, setUserId] = useState("");
   const [items, setItems] = useState<StudyItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -93,17 +110,58 @@ export default function StudyPage() {
 
       setGenerating(true);
       setError(null);
+
       try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goalId: trimmed, topic: "core concepts and key terms" }),
-        });
-        const body = (await res.json()) as { error?: string; generated?: number };
-        if (!res.ok) {
-          setError(body.error ?? "Generation failed");
+        const dashboardRes = await fetch(`/api/dashboard?goalId=${encodeURIComponent(trimmed)}`);
+        const dashboardBody = (await dashboardRes.json()) as DashboardResponse;
+
+        if (!dashboardRes.ok) {
+          setError(dashboardBody.error ?? "Failed to load objectives");
           return;
         }
+
+        const objectives = dashboardBody.objectives ?? [];
+
+        if (objectives.length === 0) {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ goalId: trimmed, topic: "core concepts and key terms" }),
+          });
+          const body = (await res.json()) as GenerateResponse;
+          if (!res.ok) {
+            setError(body.error ?? "Generation failed");
+            return;
+          }
+        } else {
+          const count = Math.max(1, Math.ceil(TARGET_GENERATED_QUESTIONS / objectives.length));
+          let generated = 0;
+
+          for (const objective of objectives) {
+            const res = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                goalId: trimmed,
+                objectiveId: objective.id,
+                count,
+              }),
+            });
+
+            const body = (await res.json()) as GenerateResponse;
+            if (!res.ok) {
+              setError(body.error ?? `Generation failed for ${objective.title}`);
+              return;
+            }
+
+            generated += body.generated ?? 0;
+          }
+
+          if (generated === 0) {
+            setError("No new mapped questions generated; they may already exist.");
+          }
+        }
+
         await loadItems(trimmed);
       } catch {
         setError("Network error during generation");
@@ -121,12 +179,6 @@ export default function StudyPage() {
         return;
       }
 
-      const trimmedUserId = userId.trim();
-      if (!trimmedUserId) {
-        setError("userId is required");
-        return;
-      }
-
       const startedAt = questionStartedAt[itemId] ?? Date.now();
       const responseMs = Date.now() - startedAt;
 
@@ -138,7 +190,6 @@ export default function StudyPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            userId: trimmedUserId,
             itemId,
             selectedKey,
             responseMs,
@@ -165,7 +216,7 @@ export default function StudyPage() {
         setSubmitting((prev) => ({ ...prev, [itemId]: false }));
       }
     },
-    [questionStartedAt, selections, userId],
+    [questionStartedAt, selections],
   );
 
   return (
@@ -190,27 +241,11 @@ export default function StudyPage() {
           Load generated MCQs for a goal. Each question cites the source PDF page.
         </p>
 
+        <div style={{ marginBottom: 16 }}>
+          <GoalSelect value={goalId} onChange={setGoalId} disabled={loading || generating} />
+        </div>
+
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
-          <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>userId (UUID)</span>
-            <input
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000001"
-              disabled={loading || generating}
-              style={fieldStyle}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>goalId (UUID)</span>
-            <input
-              value={goalId}
-              onChange={(e) => setGoalId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000002"
-              disabled={loading}
-              style={fieldStyle}
-            />
-          </label>
           <button
             type="button"
             onClick={() => void loadItems(goalId)}
@@ -246,11 +281,7 @@ export default function StudyPage() {
             {generating ? "Generating…" : "Generate questions"}
           </button>
           <a
-            href={
-              userId.trim() && goalId.trim()
-                ? `/dashboard?userId=${encodeURIComponent(userId.trim())}&goalId=${encodeURIComponent(goalId.trim())}`
-                : "/dashboard"
-            }
+            href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId.trim())}` : "/dashboard"}
             style={{
               alignSelf: "end",
               background: "transparent",
@@ -379,17 +410,14 @@ export default function StudyPage() {
                   <button
                     type="button"
                     onClick={() => void handleSubmit(item.id)}
-                    disabled={!selected || !userId.trim() || isSubmitting}
+                    disabled={!selected || isSubmitting}
                     style={{
                       background:
-                        !selected || !userId.trim() || isSubmitting
-                          ? "rgba(56, 189, 248, 0.35)"
-                          : "#38bdf8",
+                        !selected || isSubmitting ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
                       border: "none",
                       borderRadius: 12,
                       color: "#08111f",
-                      cursor:
-                        !selected || !userId.trim() || isSubmitting ? "not-allowed" : "pointer",
+                      cursor: !selected || isSubmitting ? "not-allowed" : "pointer",
                       fontWeight: 700,
                       marginTop: 18,
                       padding: "12px 18px",
@@ -436,13 +464,3 @@ export default function StudyPage() {
     </main>
   );
 }
-
-const fieldStyle: CSSProperties = {
-  background: "rgba(15, 23, 42, 0.82)",
-  border: "1px solid rgba(148, 163, 184, 0.24)",
-  borderRadius: 12,
-  color: "#f8fafc",
-  fontSize: 14,
-  padding: "12px 14px",
-  width: "100%",
-};

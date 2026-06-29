@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { executeDataStatement } from "../../../db/data-api";
+import { FREE_MAX_QUESTIONS_PER_DOC, hasProPlan } from "../../../lib/billing";
 import { generateMCQs } from "../../../lib/generate";
 import { retrieveTopChunks } from "../../../lib/retrieval";
 
@@ -133,7 +134,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Either objectiveId or topic is required" }, { status: 400 });
     }
 
-    const budgetCap = maxQuestionsPerDoc();
+    // Billing gate: Pro gets the full per-doc budget; free (and server-to-server auto-gen) is capped lower.
+    const pro = await hasProPlan();
+    const budgetCap = pro ? maxQuestionsPerDoc() : Math.min(maxQuestionsPerDoc(), FREE_MAX_QUESTIONS_PER_DOC);
     const requestedRaw = body.count ?? DEFAULT_QUESTION_COUNT;
     const requested = Math.min(
       budgetCap,

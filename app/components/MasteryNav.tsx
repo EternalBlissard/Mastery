@@ -1,8 +1,13 @@
+"use client";
+
+import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
+
 export const masteryNavLinks = [
   { href: "/goal", label: "Goal" },
   { href: "/upload", label: "Upload" },
   { href: "/study", label: "Study" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/billing", label: "Pricing" },
   { href: "/about", label: "About" },
 ] as const;
 
@@ -19,6 +24,7 @@ type MasteryNavProps = {
 };
 
 export function MasteryNav({ activeHref, marginBottom = 56 }: MasteryNavProps) {
+  const { isLoaded, isSignedIn } = useUser();
   return (
     <nav
       style={{
@@ -69,7 +75,40 @@ export function MasteryNav({ activeHref, marginBottom = 56 }: MasteryNavProps) {
         >
           Upload PDF
         </a>
+        {isLoaded && isSignedIn ? (
+          <UserButton />
+        ) : isLoaded ? (
+          <>
+            <SignInButton mode="modal">
+              <button type="button" style={ghostBtnStyle}>Sign in</button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button type="button" style={solidBtnStyle}>Sign up</button>
+            </SignUpButton>
+          </>
+        ) : null}
       </div>
     </nav>
   );
 }
+
+const ghostBtnStyle = {
+  background: "transparent",
+  border: "1px solid rgba(56, 189, 248, 0.6)",
+  borderRadius: 10,
+  color: "#7dd3fc",
+  cursor: "pointer",
+  fontSize: 14,
+  fontWeight: 700,
+  padding: "8px 14px",
+} as const;
+const solidBtnStyle = {
+  background: "#38bdf8",
+  border: "none",
+  borderRadius: 10,
+  color: "#08111f",
+  cursor: "pointer",
+  fontSize: 14,
+  fontWeight: 700,
+  padding: "8px 14px",
+} as const;

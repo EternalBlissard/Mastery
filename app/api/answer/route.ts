@@ -1,4 +1,5 @@
 import { executeDataStatement } from "../../../db/data-api";
+import { getOrCreateUser } from "../../../lib/auth";
 import { applyMasteryUpdate } from "../../../lib/bkt";
 import { Rating, ratingFromAnswer, scheduleNext, type PrevState } from "../../../lib/fsrs";
 
@@ -94,13 +95,10 @@ function sqlNullableInt(value: number | null | undefined): string {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getOrCreateUser();
     const body = (await request.json()) as AnswerRequestBody;
-    const userId = String(body.userId ?? "").trim();
     const itemId = String(body.itemId ?? "").trim();
 
-    if (!userId || !isUuid(userId)) {
-      return Response.json({ error: "userId must be a valid UUID" }, { status: 400 });
-    }
     if (!itemId || !isUuid(itemId)) {
       return Response.json({ error: "itemId must be a valid UUID" }, { status: 400 });
     }
@@ -223,6 +221,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to record answer";
-    return Response.json({ error: message }, { status: 500 });
+    const status = message === "Not authenticated" ? 401 : 500;
+    return Response.json({ error: message }, { status });
   }
 }
