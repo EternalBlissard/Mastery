@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { after } from "next/server";
 import { executeDataStatement } from "../../../db/data-api";
+import { getOrCreateUser } from "../../../lib/auth";
 import { putDocumentObject } from "../../../lib/s3";
 
 export const runtime = "nodejs";
@@ -47,19 +48,19 @@ function triggerProcessing(request: Request, documentId: string): void {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getOrCreateUser();
     const formData = await request.formData();
     const fileField = formData.get("file");
-    const userId = String(formData.get("userId") ?? "").trim();
     const goalId = String(formData.get("goalId") ?? "").trim();
 
     if (!(fileField instanceof File)) {
       return Response.json({ error: "Missing file field" }, { status: 400 });
     }
-    if (!userId || !goalId) {
-      return Response.json({ error: "userId and goalId are required" }, { status: 400 });
+    if (!goalId) {
+      return Response.json({ error: "goalId is required" }, { status: 400 });
     }
-    if (!isUuid(userId) || !isUuid(goalId)) {
-      return Response.json({ error: "userId and goalId must be UUIDs" }, { status: 400 });
+    if (!isUuid(goalId)) {
+      return Response.json({ error: "goalId must be a UUID" }, { status: 400 });
     }
 
     const filename = fileField.name || "document.pdf";
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
     return Response.json({ documentId, jobId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
-    return Response.json({ error: message }, { status: 500 });
+    const status = message === "Not authenticated" ? 401 : 500;
+    return Response.json({ error: message }, { status });
   }
 }

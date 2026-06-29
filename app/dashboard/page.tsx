@@ -1,7 +1,8 @@
 "use client";
 
 import { MasteryNav } from "../components/MasteryNav";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import GoalSelect from "../components/GoalSelect";
+import { useCallback, useEffect, useState } from "react";
 
 type DashboardObjective = {
   id: string;
@@ -23,21 +24,15 @@ function formatPercent(fraction: number): string {
 }
 
 export default function DashboardPage() {
-  const [userId, setUserId] = useState("");
   const [goalId, setGoalId] = useState("");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDashboard = useCallback(async (uid: string, gid: string) => {
-    const trimmedUserId = uid.trim();
+  const loadDashboard = useCallback(async (gid: string) => {
     const trimmedGoalId = gid.trim();
-    if (!trimmedUserId) {
-      setError("userId is required");
-      return;
-    }
     if (!trimmedGoalId) {
-      setError("goalId is required");
+      setError("Pick a goal first");
       return;
     }
 
@@ -46,10 +41,7 @@ export default function DashboardPage() {
     setData(null);
 
     try {
-      const params = new URLSearchParams({
-        userId: trimmedUserId,
-        goalId: trimmedGoalId,
-      });
+      const params = new URLSearchParams({ goalId: trimmedGoalId });
       const res = await fetch(`/api/dashboard?${params.toString()}`);
       const body = (await res.json()) as DashboardData & { error?: string };
       if (!res.ok) {
@@ -64,18 +56,21 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const handleGoalChange = useCallback(
+    (gid: string) => {
+      setGoalId(gid);
+      if (gid.trim()) {
+        void loadDashboard(gid);
+      }
+    },
+    [loadDashboard],
+  );
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const fromUserId = params.get("userId")?.trim() ?? "";
-    const fromGoalId = params.get("goalId")?.trim() ?? "";
-    if (fromUserId) {
-      setUserId(fromUserId);
-    }
+    const fromGoalId = new URLSearchParams(window.location.search).get("goalId")?.trim() ?? "";
     if (fromGoalId) {
       setGoalId(fromGoalId);
-    }
-    if (fromUserId && fromGoalId) {
-      void loadDashboard(fromUserId, fromGoalId);
+      void loadDashboard(fromGoalId);
     }
   }, [loadDashboard]);
 
@@ -101,47 +96,26 @@ export default function DashboardPage() {
           Readiness, due reviews, completed questions, and PDF coverage per objective — all from live DB state.
         </p>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
-          <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>userId (UUID)</span>
-            <input
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000001"
-              disabled={loading}
-              style={fieldStyle}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>goalId (UUID)</span>
-            <input
-              value={goalId}
-              onChange={(e) => setGoalId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000002"
-              disabled={loading}
-              style={fieldStyle}
-            />
-          </label>
+        <div style={{ marginBottom: 16 }}>
+          <GoalSelect value={goalId} onChange={handleGoalChange} disabled={loading} />
+        </div>
+
+        <div style={{ marginBottom: 28 }}>
           <button
             type="button"
-            onClick={() => void loadDashboard(userId, goalId)}
-            disabled={loading || !userId.trim() || !goalId.trim()}
+            onClick={() => void loadDashboard(goalId)}
+            disabled={loading || !goalId.trim()}
             style={{
-              alignSelf: "end",
-              background:
-                loading || !userId.trim() || !goalId.trim()
-                  ? "rgba(56, 189, 248, 0.35)"
-                  : "#38bdf8",
+              background: loading || !goalId.trim() ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
               border: "none",
               borderRadius: 12,
               color: "#08111f",
-              cursor:
-                loading || !userId.trim() || !goalId.trim() ? "not-allowed" : "pointer",
+              cursor: loading || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
             }}
           >
-            {loading ? "Loading…" : "Load dashboard"}
+            {loading ? "Loading…" : "Refresh dashboard"}
           </button>
         </div>
 
@@ -301,13 +275,3 @@ function ObjectiveRow({ objective }: { objective: DashboardObjective }) {
     </article>
   );
 }
-
-const fieldStyle: CSSProperties = {
-  background: "rgba(15, 23, 42, 0.82)",
-  border: "1px solid rgba(148, 163, 184, 0.24)",
-  borderRadius: 12,
-  color: "#f8fafc",
-  fontSize: 14,
-  padding: "12px 14px",
-  width: "100%",
-};

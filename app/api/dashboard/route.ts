@@ -1,4 +1,5 @@
 import { executeDataStatement } from "../../../db/data-api";
+import { getOrCreateUser } from "../../../lib/auth";
 import { BKT_PRIOR } from "../../../lib/bkt";
 
 export const runtime = "nodejs";
@@ -90,13 +91,10 @@ function computeCoverage(rows: ObjectiveRow[]): number {
 
 export async function GET(request: Request) {
   try {
+    const userId = await getOrCreateUser();
     const params = new URL(request.url).searchParams;
-    const userId = String(params.get("userId") ?? "").trim();
     const goalId = String(params.get("goalId") ?? "").trim();
 
-    if (!userId || !isUuid(userId)) {
-      return Response.json({ error: "userId must be a valid UUID" }, { status: 400 });
-    }
     if (!goalId || !isUuid(goalId)) {
       return Response.json({ error: "goalId must be a valid UUID" }, { status: 400 });
     }
@@ -181,6 +179,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load dashboard";
-    return Response.json({ error: message }, { status: 500 });
+    const status = message === "Not authenticated" ? 401 : 500;
+    return Response.json({ error: message }, { status });
   }
 }

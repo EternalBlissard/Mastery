@@ -1,12 +1,12 @@
 "use client";
 
 import { MasteryNav } from "../components/MasteryNav";
+import GoalSelect from "../components/GoalSelect";
 import {
   useCallback,
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type DragEvent,
 } from "react";
 
@@ -20,7 +20,6 @@ const POLL_MS = 2000;
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [userId, setUserId] = useState("");
   const [goalId, setGoalId] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -39,6 +38,13 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("goalId")?.trim() ?? "";
+    if (fromUrl) {
+      setGoalId(fromUrl);
+    }
+  }, []);
 
   const pickFile = useCallback((next: File | null) => {
     if (!next) {
@@ -103,8 +109,8 @@ export default function UploadPage() {
       setError("Choose a PDF to upload");
       return;
     }
-    if (!userId.trim() || !goalId.trim()) {
-      setError("userId and goalId are required");
+    if (!goalId.trim()) {
+      setError("Pick a goal first");
       return;
     }
 
@@ -115,7 +121,6 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("userId", userId.trim());
     formData.append("goalId", goalId.trim());
 
     try {
@@ -167,26 +172,7 @@ export default function UploadPage() {
         </p>
 
         <div style={{ display: "grid", gap: 16, marginBottom: 24 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>userId (UUID)</span>
-            <input
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000001"
-              disabled={uploading}
-              style={fieldStyle}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ color: "#cbd5e1", fontSize: 14 }}>goalId (UUID)</span>
-            <input
-              value={goalId}
-              onChange={(e) => setGoalId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000002"
-              disabled={uploading}
-              style={fieldStyle}
-            />
-          </label>
+          <GoalSelect value={goalId} onChange={setGoalId} disabled={uploading} />
         </div>
 
         <div
@@ -349,12 +335,3 @@ export default function UploadPage() {
     </main>
   );
 }
-
-const fieldStyle: CSSProperties = {
-  background: "rgba(15, 23, 42, 0.82)",
-  border: "1px solid rgba(148, 163, 184, 0.24)",
-  borderRadius: 12,
-  color: "#f8fafc",
-  fontSize: 14,
-  padding: "12px 14px",
-};
