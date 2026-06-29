@@ -58,6 +58,31 @@ function formatDue(iso: string | null): string {
   });
 }
 
+// Human gap from now until the next review (e.g. "10 min", "5 h", "3 days").
+function humanInterval(fromMs: number, toMs: number): string {
+  const mins = Math.max(0, Math.round((toMs - fromMs) / 60000));
+  if (mins < 60) {
+    return `${mins} min`;
+  }
+  const hours = Math.round(mins / 60);
+  if (hours < 24) {
+    return `${hours} h`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+// Makes the adaptive moment legible in one frame: a wrong answer pulls the card sooner, a strong
+// answer pushes it later. Prefer comparing the new due to the previous due; fall back to
+// correctness for brand-new cards (no previous due).
+function scheduleDelta(result: AnswerResult): { later: boolean; intervalLabel: string } {
+  const now = Date.now();
+  const nextMs = new Date(result.nextDue).getTime();
+  const later =
+    result.previousDue != null ? nextMs > new Date(result.previousDue).getTime() : result.correct;
+  return { later, intervalLabel: humanInterval(now, nextMs) };
+}
+
 export default function StudyPage() {
   const [goalId, setGoalId] = useState("");
   const [items, setItems] = useState<StudyItem[]>([]);
@@ -691,9 +716,41 @@ export default function StudyPage() {
                           padding: 14,
                         }}
                       >
-                        <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: "0 0 6px" }}>
-                          Adaptive review scheduled
-                        </p>
+                        {(() => {
+                          const delta = scheduleDelta(result);
+                          return (
+                            <div
+                              style={{
+                                alignItems: "center",
+                                display: "flex",
+                                gap: 8,
+                                marginBottom: 8,
+                              }}
+                            >
+                              <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: 0 }}>
+                                Adaptive review scheduled
+                              </p>
+                              <span
+                                style={{
+                                  background: delta.later
+                                    ? "rgba(74, 222, 128, 0.14)"
+                                    : "rgba(251, 191, 36, 0.14)",
+                                  border: `1px solid ${
+                                    delta.later ? "rgba(74, 222, 128, 0.45)" : "rgba(251, 191, 36, 0.45)"
+                                  }`,
+                                  borderRadius: 999,
+                                  color: delta.later ? "#4ade80" : "#fbbf24",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  padding: "2px 10px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {delta.later ? "↑ Later" : "↓ Sooner"} · in {delta.intervalLabel}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         <p style={{ color: "rgba(255,255,255,.85)", fontSize: 15, margin: "0 0 4px" }}>
                           Next review: <strong>{formatDue(result.nextDue)}</strong>
                         </p>

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "migrate": "node --env-file=.env scripts/migrate.mjs",
+    "seed:demo": "node --env-file=.env scripts/seed-demo.mjs",
     "db:health": "node --env-file=.env scripts/data-api-health.mjs",
     "db:data-api-health": "node --env-file=.env scripts/data-api-health.mjs"
   },

@@ -1,6 +1,7 @@
 import { MasteryNav } from "./components/MasteryNav";
 import { MasteryTrustFooter } from "./components/MasteryTrustFooter";
 import { AnimatedProgressBar } from "./components/AnimatedProgressBar";
+import { getLandingStats } from "../lib/landing";
 
 const workflow = [
   { title: "Upload PDF", detail: "Drop your lecture notes" },
@@ -8,7 +9,29 @@ const workflow = [
   { title: "Adaptive review", detail: "Study only what you're about to forget" },
 ];
 
-export default function HomePage() {
+const SAMPLE_HERO = {
+  isSample: true as const,
+  dueToday: 17,
+  coverage: 74,
+  mastery: 61,
+  latestStem: "What storage class is best for infrequently accessed data?",
+  citation: "Page 18",
+};
+
+export default async function HomePage() {
+  const stats = await getLandingStats();
+  const hero = stats
+    ? {
+        isSample: false as const,
+        dueToday: stats.dueToday,
+        coverage: Math.round(stats.coverage * 100),
+        mastery: Math.round(stats.mastery * 100),
+        latestStem: stats.latestQuestion?.stem ?? SAMPLE_HERO.latestStem,
+        citation:
+          stats.latestQuestion?.page != null ? `Page ${stats.latestQuestion.page}` : "From your notes",
+      }
+    : SAMPLE_HERO;
+
   return (
     <main
       style={{
@@ -99,23 +122,63 @@ export default function HomePage() {
               padding: 28,
             }}
           >
-            <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: "0 0 8px" }}>
-              Today&apos;s Review
-            </p>
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: 0 }}>
+                Today&apos;s Review
+              </p>
+              {hero.isSample ? (
+                <span
+                  style={{
+                    background: "rgba(148, 163, 184, 0.12)",
+                    border: "1px solid rgba(148, 163, 184, 0.28)",
+                    borderRadius: 999,
+                    color: "#94a3b8",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    padding: "2px 8px",
+                  }}
+                >
+                  SAMPLE
+                </span>
+              ) : (
+                <span
+                  style={{
+                    background: "rgba(74, 222, 128, 0.14)",
+                    border: "1px solid rgba(74, 222, 128, 0.45)",
+                    borderRadius: 999,
+                    color: "#4ade80",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    padding: "2px 8px",
+                  }}
+                >
+                  LIVE
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.04em", margin: "0 0 4px" }}>
-              17 cards due
+              {hero.dueToday} card{hero.dueToday === 1 ? "" : "s"} due
             </p>
             <div style={{ margin: "20px 0" }}>
-              <AnimatedProgressBar percent={74} />
+              <AnimatedProgressBar percent={hero.mastery} />
             </div>
             <div style={{ display: "flex", gap: 24, marginBottom: 24 }}>
               <div>
                 <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Coverage</p>
-                <p style={{ fontSize: 20, fontWeight: 800, margin: "4px 0 0" }}>74%</p>
+                <p style={{ fontSize: 20, fontWeight: 800, margin: "4px 0 0" }}>{hero.coverage}%</p>
               </div>
               <div>
                 <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Mastery</p>
-                <p style={{ fontSize: 20, fontWeight: 800, margin: "4px 0 0" }}>61%</p>
+                <p style={{ fontSize: 20, fontWeight: 800, margin: "4px 0 0" }}>{hero.mastery}%</p>
               </div>
             </div>
             <div
@@ -129,10 +192,10 @@ export default function HomePage() {
                 Latest question
               </p>
               <p style={{ fontSize: 15, lineHeight: 1.5, margin: "0 0 12px" }}>
-                &ldquo;What storage class is best for infrequently accessed data?&rdquo;
+                &ldquo;{hero.latestStem}&rdquo;
               </p>
               <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: 0 }}>
-                Citation: Page 18
+                Citation: {hero.citation}
               </p>
             </div>
           </aside>
