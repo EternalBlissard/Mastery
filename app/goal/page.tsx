@@ -1,17 +1,4 @@
-const navLinks = [
-  { href: "/goal", label: "Goal" },
-  { href: "/upload", label: "Upload" },
-  { href: "/study", label: "Study" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/about", label: "About" },
-];
-
-const linkStyle = {
-  color: "#cbd5e1",
-  fontSize: 14,
-  fontWeight: 600,
-  textDecoration: "none",
-} as const;
+import { MasteryNav } from "../components/MasteryNav";
 
 export default function GoalPage() {
   return (
@@ -24,48 +11,7 @@ export default function GoalPage() {
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 720 }}>
-        <nav
-          style={{
-            alignItems: "center",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            justifyContent: "space-between",
-            marginBottom: 56,
-          }}
-        >
-          <a href="/" style={{ color: "#f8fafc", fontSize: 22, fontWeight: 700, letterSpacing: "-0.04em", textDecoration: "none" }}>
-            Mastery
-          </a>
-          <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 18 }}>
-            {navLinks.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                style={{
-                  ...linkStyle,
-                  color: item.href === "/goal" ? "#38bdf8" : linkStyle.color,
-                }}
-              >
-                {item.label}
-              </a>
-            ))}
-            <a
-              href="/upload"
-              style={{
-                background: "#38bdf8",
-                borderRadius: 10,
-                color: "#08111f",
-                fontSize: 14,
-                fontWeight: 800,
-                padding: "10px 14px",
-                textDecoration: "none",
-              }}
-            >
-              Upload PDF
-            </a>
-          </div>
-        </nav>
+        <MasteryNav activeHref="/goal" />
 
         <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 12 }}>
           STEP 1 OF 5

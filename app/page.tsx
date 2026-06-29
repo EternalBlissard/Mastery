@@ -1,3 +1,5 @@
+import { MasteryNav } from "./components/MasteryNav";
+
 const flow = [
   "Pick AWS CLF-C02",
   "Upload one lecture PDF",
@@ -5,21 +7,6 @@ const flow = [
   "Review with FSRS",
   "Watch mastery move",
 ];
-
-const navLinks = [
-  { href: "/goal", label: "Goal" },
-  { href: "/upload", label: "Upload" },
-  { href: "/study", label: "Study" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/about", label: "About" },
-];
-
-const linkStyle = {
-  color: "#cbd5e1",
-  fontSize: 14,
-  fontWeight: 600,
-  textDecoration: "none",
-} as const;
 
 export default function HomePage() {
   return (
@@ -32,39 +19,7 @@ export default function HomePage() {
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 1120 }}>
-        <nav
-          style={{
-            alignItems: "center",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            justifyContent: "space-between",
-            marginBottom: 72,
-          }}
-        >
-          <strong style={{ fontSize: 22, letterSpacing: "-0.04em" }}>Mastery</strong>
-          <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 18 }}>
-            {navLinks.map((item) => (
-              <a key={item.href} href={item.href} style={linkStyle}>
-                {item.label}
-              </a>
-            ))}
-            <a
-              href="/upload"
-              style={{
-                background: "#38bdf8",
-                borderRadius: 10,
-                color: "#08111f",
-                fontSize: 14,
-                fontWeight: 800,
-                padding: "10px 14px",
-                textDecoration: "none",
-              }}
-            >
-              Upload PDF
-            </a>
-          </div>
-        </nav>
+        <MasteryNav marginBottom={72} />
 
         <div style={{ display: "grid", gap: 32, gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)" }}>
           <div>
