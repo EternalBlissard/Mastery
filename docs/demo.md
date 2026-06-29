@@ -15,6 +15,23 @@ Pins the demo inputs and the cold click-path so the recorded run is reproducible
 If a university lecture deck is preferred for the "your own notes" narrative, pin one PDF and
 update this file — the demo must use **one** document so coverage and the dashboard read cleanly.
 
+## Pre-seed (do once before recording)
+
+Populate a complete demo account so the landing hero shows **LIVE** stats and study/dashboard are
+alive on a cold open — no generating on camera:
+
+```
+DEMO_USER_EMAIL=<your-clerk-demo-email> npm run seed:demo
+```
+
+Then sign into the Clerk demo account with that **same email** — `lib/auth.ts` links the Clerk
+session to the seeded row by email, so the hero reads the seeded goal. Seeds: 1 goal, 1 document,
+11 cited MCQs (D1–D3 covered → 75% coverage), ~5 cards due now, a 5-day streak, and mastery
+(~58% readiness). Idempotent — safe to re-run; it re-stamps review timing to stay current.
+
+This is also the **safe fallback**: if the live upload step flops on camera, the account already
+holds questions to study.
+
 ## Cold demo click-path
 
 1. Sign in (Clerk) **before recording** — auth is kept, so start the take already authenticated.
