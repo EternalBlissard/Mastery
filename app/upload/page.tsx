@@ -18,10 +18,17 @@ type JobStatus = {
 };
 
 const POLL_MS = 2000;
+// Stop watching generation once the question count holds steady this many polls, or after the cap.
+const GEN_STABLE_POLLS = 3;
+const GEN_MAX_POLLS = 24;
 
-function humanProgressLabel(step: string | null | undefined, status: string | null | undefined): string {
+function humanProgressLabel(
+  step: string | null | undefined,
+  status: string | null | undefined,
+  generating: boolean,
+): string {
   if (status === "done") {
-    return "Ready to study";
+    return generating ? "Generating cited questions" : "Ready to study";
   }
   if (status === "error") {
     return "Something went wrong";
@@ -44,7 +51,10 @@ export default function UploadPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [itemCount, setItemCount] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const genPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stopPolling = useCallback(() => {
@@ -54,7 +64,67 @@ export default function UploadPage() {
     }
   }, []);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  const stopGenPolling = useCallback(() => {
+    if (genPollRef.current) {
+      clearInterval(genPollRef.current);
+      genPollRef.current = null;
+    }
+  }, []);
+
+  // After ingest finishes, generation runs server-side (fire-and-forget). Poll the goal's item
+  // count so the UI shows questions appearing instead of jumping straight to "ready".
+  const startGenerationPolling = useCallback(
+    (gid: string) => {
+      stopGenPolling();
+      setGenerating(true);
+      setItemCount(0);
+
+      let polls = 0;
+      let lastCount = -1;
+      let stableFor = 0;
+
+      const poll = async () => {
+        polls += 1;
+        try {
+          const res = await fetch(`/api/items?goalId=${encodeURIComponent(gid)}`);
+          if (res.ok) {
+            const data = (await res.json()) as { totalInGoal?: number };
+            const count = data.totalInGoal ?? 0;
+            setItemCount(count);
+            stableFor = count === lastCount ? stableFor + 1 : 0;
+            lastCount = count;
+            // Done once questions exist and the count has settled, or we hit the time cap.
+            if ((count > 0 && stableFor >= GEN_STABLE_POLLS) || polls >= GEN_MAX_POLLS) {
+              stopGenPolling();
+              setGenerating(false);
+            }
+          } else if (polls >= GEN_MAX_POLLS) {
+            stopGenPolling();
+            setGenerating(false);
+          }
+        } catch {
+          if (polls >= GEN_MAX_POLLS) {
+            stopGenPolling();
+            setGenerating(false);
+          }
+        }
+      };
+
+      void poll();
+      genPollRef.current = setInterval(() => {
+        void poll();
+      }, POLL_MS);
+    },
+    [stopGenPolling],
+  );
+
+  useEffect(
+    () => () => {
+      stopPolling();
+      stopGenPolling();
+    },
+    [stopPolling, stopGenPolling],
+  );
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("goalId")?.trim() ?? "";
@@ -72,7 +142,10 @@ export default function UploadPage() {
     setJob(null);
     setJobId(null);
     setDocumentId(null);
-  }, []);
+    setGenerating(false);
+    setItemCount(0);
+    stopGenPolling();
+  }, [stopGenPolling]);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
@@ -87,7 +160,7 @@ export default function UploadPage() {
   );
 
   const startPolling = useCallback(
-    (id: string) => {
+    (id: string, gid: string) => {
       stopPolling();
 
       const poll = async () => {
@@ -102,7 +175,11 @@ export default function UploadPage() {
           }
           const data = (await res.json()) as JobStatus;
           setJob(data);
-          if (data.status === "done" || data.status === "error") {
+          if (data.status === "done") {
+            stopPolling();
+            setUploading(false);
+            startGenerationPolling(gid);
+          } else if (data.status === "error") {
             stopPolling();
             setUploading(false);
           }
@@ -118,7 +195,7 @@ export default function UploadPage() {
         void poll();
       }, POLL_MS);
     },
-    [stopPolling],
+    [stopPolling, startGenerationPolling],
   );
 
   const handleUpload = async () => {
@@ -134,7 +211,10 @@ export default function UploadPage() {
     setUploading(true);
     setError(null);
     setJob(null);
+    setGenerating(false);
+    setItemCount(0);
     stopPolling();
+    stopGenPolling();
 
     const formData = new FormData();
     formData.append("file", file);
@@ -156,7 +236,7 @@ export default function UploadPage() {
 
       setJobId(body.jobId);
       setDocumentId(body.documentId ?? null);
-      startPolling(body.jobId);
+      startPolling(body.jobId, goalId.trim());
     } catch {
       setError("Network error during upload");
       setUploading(false);
@@ -165,6 +245,8 @@ export default function UploadPage() {
 
   const progressPct = job?.progressPct ?? 0;
   const isTerminal = job?.status === "done" || job?.status === "error";
+  const generationActive = job?.status === "done" && generating;
+  const studyReady = job?.status === "done" && !generating;
 
   return (
     <main
@@ -299,12 +381,12 @@ export default function UploadPage() {
             }}
           >
             <p style={{ color: "rgba(255,255,255,.72)", fontWeight: 700, margin: "0 0 16px" }}>
-              {humanProgressLabel(job?.step, job?.status)}
+              {humanProgressLabel(job?.step, job?.status, generating)}
             </p>
 
             <AnimatedProgressBar
-              percent={progressPct}
-              active={!isTerminal}
+              percent={generationActive ? 100 : progressPct}
+              active={!isTerminal || generating}
               height={12}
             />
 
@@ -317,15 +399,28 @@ export default function UploadPage() {
               }}
             >
               <span style={{ color: "rgba(255,255,255,.72)", fontSize: 14 }}>
-                {humanProgressLabel(job?.step, job?.status)}
+                {humanProgressLabel(job?.step, job?.status, generating)}
               </span>
-              <span style={{ color: "#34B8FF", fontWeight: 700 }}>{progressPct}%</span>
+              <span style={{ color: "#34B8FF", fontWeight: 700 }}>
+                {generationActive
+                  ? `${itemCount} question${itemCount === 1 ? "" : "s"}`
+                  : `${progressPct}%`}
+              </span>
             </div>
 
-            {job?.status === "done" ? (
+            {generationActive ? (
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: "20px 0 0" }}>
+                Reading your pages and writing cited questions
+                {itemCount > 0 ? ` — ${itemCount} ready so far` : ""}…
+              </p>
+            ) : null}
+
+            {studyReady ? (
               <>
                 <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: "20px 0 12px" }}>
-                  Your study material is ready. Start practicing with cited questions.
+                  {itemCount > 0
+                    ? `${itemCount} cited question${itemCount === 1 ? "" : "s"} ready. Start practicing.`
+                    : "Your study material is ready. Start practicing with cited questions."}
                 </p>
                 <a
                   href={`/study?goalId=${encodeURIComponent(goalId)}`}

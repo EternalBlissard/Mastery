@@ -3,3 +3,5 @@
 node_modules/
 .next/
 *.tsbuildinfo
+# Demo PDF binary (see docs/demo.md)
+demo/*.pdf
