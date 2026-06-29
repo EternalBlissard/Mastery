@@ -32,7 +32,23 @@ export default function HomePage() {
           }}
         >
           <strong style={{ fontSize: 22, letterSpacing: "-0.04em" }}>Mastery</strong>
-          <span style={{ color: "#93c5fd", fontSize: 14 }}>H0 MVP backend online</span>
+          <div style={{ alignItems: "center", display: "flex", gap: 18 }}>
+            <span style={{ color: "#93c5fd", fontSize: 14 }}>H0 MVP backend online</span>
+            <a
+              href="/upload"
+              style={{
+                background: "#38bdf8",
+                borderRadius: 10,
+                color: "#08111f",
+                fontSize: 14,
+                fontWeight: 800,
+                padding: "10px 14px",
+                textDecoration: "none",
+              }}
+            >
+              Upload PDF
+            </a>
+          </div>
         </nav>
 
         <div style={{ display: "grid", gap: 32, gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)" }}>
@@ -54,6 +70,35 @@ export default function HomePage() {
               Mastery maps a real lecture PDF to AWS CLF-C02 objectives, generates original questions with page
               citations, and schedules review by predicted forgetting.
             </p>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 32 }}>
+              <a
+                href="/upload"
+                style={{
+                  background: "#38bdf8",
+                  borderRadius: 12,
+                  color: "#08111f",
+                  fontWeight: 800,
+                  padding: "14px 18px",
+                  textDecoration: "none",
+                }}
+              >
+                Upload lecture PDF
+              </a>
+              <a
+                href="/api/health/db"
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.32)",
+                  borderRadius: 12,
+                  color: "#e2e8f0",
+                  fontWeight: 700,
+                  padding: "14px 18px",
+                  textDecoration: "none",
+                }}
+              >
+                Check database
+              </a>
+            </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
               {flow.map((step) => (
