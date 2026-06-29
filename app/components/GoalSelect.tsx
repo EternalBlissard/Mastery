@@ -25,6 +25,7 @@ export default function GoalSelect({ value, onChange, disabled }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [upgradeRequired, setUpgradeRequired] = useState(false);
   const autoSelected = useRef(false);
 
   const load = useCallback(async () => {
@@ -63,15 +64,17 @@ export default function GoalSelect({ value, onChange, disabled }: Props) {
     }
     setCreating(true);
     setError(null);
+    setUpgradeRequired(false);
     try {
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, mode: "combined", certificationCode: "CLF-C02" }),
       });
-      const body = (await res.json()) as { id?: string; error?: string };
+      const body = (await res.json()) as { id?: string; error?: string; upgradeRequired?: boolean };
       if (!res.ok || !body.id) {
         setError(body.error ?? "Failed to create goal");
+        setUpgradeRequired(Boolean(body.upgradeRequired));
         return;
       }
       setNewTitle("");
@@ -135,6 +138,24 @@ export default function GoalSelect({ value, onChange, disabled }: Props) {
         <span style={{ color: "#f87171", fontSize: 13 }} role="alert">
           {error}
         </span>
+      ) : null}
+
+      {upgradeRequired ? (
+        <a
+          href="/billing"
+          style={{
+            background: "#38bdf8",
+            borderRadius: 10,
+            color: "#08111f",
+            fontSize: 13,
+            fontWeight: 800,
+            justifySelf: "start",
+            padding: "8px 14px",
+            textDecoration: "none",
+          }}
+        >
+          Upgrade to Pro →
+        </a>
       ) : null}
     </div>
   );

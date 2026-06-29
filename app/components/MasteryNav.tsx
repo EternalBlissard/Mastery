@@ -7,6 +7,7 @@ export const masteryNavLinks = [
   { href: "/upload", label: "Upload" },
   { href: "/study", label: "Study" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/billing", label: "Pricing" },
   { href: "/about", label: "About" },
 ] as const;
 

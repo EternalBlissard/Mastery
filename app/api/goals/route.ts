@@ -1,5 +1,6 @@
 import { executeDataStatement } from "../../../db/data-api";
 import { getOrCreateUser } from "../../../lib/auth";
+import { FREE_MAX_GOALS, hasProPlan } from "../../../lib/billing";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,24 @@ export async function POST(request: Request) {
     }
     const mode = VALID_MODES.has(String(body.mode)) ? String(body.mode) : "combined";
     const certCode = body.certificationCode ? String(body.certificationCode).trim() : "CLF-C02";
+
+    // Billing gate: free plan is capped at FREE_MAX_GOALS; Pro unlocks unlimited goals.
+    if (!(await hasProPlan())) {
+      const countResult = await executeDataStatement(
+        `SELECT COUNT(*) AS n FROM goals WHERE user_id = '${userId}'::uuid`,
+      );
+      const field = countResult.records?.[0]?.[0];
+      const goalCount = Number(field?.longValue ?? field?.stringValue ?? 0);
+      if (goalCount >= FREE_MAX_GOALS) {
+        return Response.json(
+          {
+            error: `The free plan is limited to ${FREE_MAX_GOALS} goal${FREE_MAX_GOALS === 1 ? "" : "s"}. Upgrade to Pro for unlimited goals.`,
+            upgradeRequired: true,
+          },
+          { status: 402 },
+        );
+      }
+    }
 
     // Resolve the certification (may be null for an "own"-materials-only goal).
     const certResult = await executeDataStatement(
