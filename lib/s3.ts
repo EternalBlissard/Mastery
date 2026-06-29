@@ -27,8 +27,18 @@ function hashPayload(data: Buffer): string {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
+// SigV4 requires RFC-3986 encoding: every byte except unreserved (A-Za-z0-9-_.~) is percent-encoded.
+// encodeURIComponent leaves !*'() unencoded, but AWS's canonical URI encodes them — so a key with
+// spaces/parens (e.g. "Scaling (1).pdf") must encode those too or signatures mismatch. Slashes stay.
+function encodeRfc3986(segment: string): string {
+  return encodeURIComponent(segment).replace(
+    /[!*'()]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
 function encodeS3Key(key: string): string {
-  return key.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+  return key.split("/").map(encodeRfc3986).join("/");
 }
 
 function signGetRequest(path: string) {
