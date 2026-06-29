@@ -14,14 +14,31 @@ type StudyItem = {
 
 const OPTION_KEYS = ["A", "B", "C", "D"] as const;
 
+type AnswerResult = {
+  previousDue: string | null;
+  nextDue: string;
+  correct: boolean;
+};
+
+function formatDue(iso: string | null): string {
+  if (!iso) {
+    return "never scheduled";
+  }
+  return new Date(iso).toLocaleString();
+}
+
 export default function StudyPage() {
   const [goalId, setGoalId] = useState("");
+  const [userId, setUserId] = useState("");
   const [items, setItems] = useState<StudyItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
+  const [answerResults, setAnswerResults] = useState<Record<string, AnswerResult>>({});
+  const [questionStartedAt, setQuestionStartedAt] = useState<Record<string, number>>({});
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
 
   const loadItems = useCallback(async (id: string) => {
     const trimmed = id.trim();
@@ -35,6 +52,9 @@ export default function StudyPage() {
     setItems([]);
     setSelections({});
     setSubmitted({});
+    setAnswerResults({});
+    setQuestionStartedAt({});
+    setSubmitting({});
 
     try {
       const res = await fetch(`/api/items?goalId=${encodeURIComponent(trimmed)}`);
@@ -43,7 +63,10 @@ export default function StudyPage() {
         setError(body.error ?? "Failed to load items");
         return;
       }
-      setItems(body.items ?? []);
+      const loaded = body.items ?? [];
+      const startedAt = Date.now();
+      setItems(loaded);
+      setQuestionStartedAt(Object.fromEntries(loaded.map((item) => [item.id, startedAt])));
     } catch {
       setError("Network error while loading items");
     } finally {
@@ -90,12 +113,59 @@ export default function StudyPage() {
     [loadItems],
   );
 
-  const handleSubmit = (itemId: string) => {
-    if (!selections[itemId]) {
-      return;
-    }
-    setSubmitted((prev) => ({ ...prev, [itemId]: true }));
-  };
+  const handleSubmit = useCallback(
+    async (itemId: string) => {
+      const selectedKey = selections[itemId];
+      if (!selectedKey) {
+        return;
+      }
+
+      const trimmedUserId = userId.trim();
+      if (!trimmedUserId) {
+        setError("userId is required");
+        return;
+      }
+
+      const startedAt = questionStartedAt[itemId] ?? Date.now();
+      const responseMs = Date.now() - startedAt;
+
+      setSubmitting((prev) => ({ ...prev, [itemId]: true }));
+      setError(null);
+
+      try {
+        const res = await fetch("/api/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: trimmedUserId,
+            itemId,
+            selectedKey,
+            responseMs,
+          }),
+        });
+        const body = (await res.json()) as AnswerResult & { error?: string };
+        if (!res.ok) {
+          setError(body.error ?? "Failed to record answer");
+          return;
+        }
+
+        setAnswerResults((prev) => ({
+          ...prev,
+          [itemId]: {
+            previousDue: body.previousDue,
+            nextDue: body.nextDue,
+            correct: body.correct,
+          },
+        }));
+        setSubmitted((prev) => ({ ...prev, [itemId]: true }));
+      } catch {
+        setError("Network error while recording answer");
+      } finally {
+        setSubmitting((prev) => ({ ...prev, [itemId]: false }));
+      }
+    },
+    [questionStartedAt, selections, userId],
+  );
 
   return (
     <main
@@ -124,6 +194,16 @@ export default function StudyPage() {
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
+          <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
+            <span style={{ color: "#cbd5e1", fontSize: 14 }}>userId (UUID)</span>
+            <input
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="00000000-0000-4000-8000-000000000001"
+              disabled={loading || generating}
+              style={fieldStyle}
+            />
+          </label>
           <label style={{ display: "grid", gap: 6, flex: "1 1 280px" }}>
             <span style={{ color: "#cbd5e1", fontSize: 14 }}>goalId (UUID)</span>
             <input
@@ -186,8 +266,10 @@ export default function StudyPage() {
         <div style={{ display: "grid", gap: 24 }}>
           {items.map((item, index) => {
             const isSubmitted = submitted[item.id] === true;
+            const isSubmitting = submitting[item.id] === true;
             const selected = selections[item.id] ?? "";
-            const isCorrect = selected === item.answer_key;
+            const result = answerResults[item.id];
+            const isCorrect = result?.correct ?? selected === item.answer_key;
 
             return (
               <article
@@ -280,20 +362,24 @@ export default function StudyPage() {
                 {!isSubmitted ? (
                   <button
                     type="button"
-                    onClick={() => handleSubmit(item.id)}
-                    disabled={!selected}
+                    onClick={() => void handleSubmit(item.id)}
+                    disabled={!selected || !userId.trim() || isSubmitting}
                     style={{
-                      background: !selected ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
+                      background:
+                        !selected || !userId.trim() || isSubmitting
+                          ? "rgba(56, 189, 248, 0.35)"
+                          : "#38bdf8",
                       border: "none",
                       borderRadius: 12,
                       color: "#08111f",
-                      cursor: !selected ? "not-allowed" : "pointer",
+                      cursor:
+                        !selected || !userId.trim() || isSubmitting ? "not-allowed" : "pointer",
                       fontWeight: 700,
                       marginTop: 18,
                       padding: "12px 18px",
                     }}
                   >
-                    Check answer
+                    {isSubmitting ? "Saving…" : "Check answer"}
                   </button>
                 ) : (
                   <aside
@@ -314,6 +400,11 @@ export default function StudyPage() {
                     >
                       {isCorrect ? "Correct" : `Incorrect — answer is ${item.answer_key}`}
                     </p>
+                    {result ? (
+                      <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 8px" }}>
+                        Next review: {formatDue(result.nextDue)} (was {formatDue(result.previousDue)})
+                      </p>
+                    ) : null}
                     {item.explanation ? (
                       <p style={{ color: "#cbd5e1", lineHeight: 1.6, margin: 0 }}>
                         {item.explanation}
