@@ -31,6 +31,32 @@ function encodeS3Key(key: string): string {
   return key.split("/").map((segment) => encodeURIComponent(segment)).join("/");
 }
 
+function signGetRequest(path: string) {
+  const region = requireEnv("AWS_REGION");
+  const host = `${SERVICE}.${region}.amazonaws.com`;
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const payloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const canonicalRequest = ["GET", path, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const credentialScope = `${dateStamp}/${region}/${SERVICE}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, hashHex(canonicalRequest)].join("\n");
+  const kDate = hmac(`AWS4${requireEnv("AWS_SECRET_ACCESS_KEY")}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, SERVICE);
+  const kSigning = hmac(kService, "aws4_request");
+  const signature = hmacHex(kSigning, stringToSign);
+
+  return {
+    host,
+    amzDate,
+    payloadHash,
+    authorization: `AWS4-HMAC-SHA256 Credential=${requireEnv("AWS_ACCESS_KEY_ID")}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+  };
+}
+
 function signPutRequest(path: string, body: Buffer, contentType: string) {
   const region = requireEnv("AWS_REGION");
   const host = `${SERVICE}.${region}.amazonaws.com`;
@@ -55,6 +81,44 @@ function signPutRequest(path: string, body: Buffer, contentType: string) {
     payloadHash,
     authorization: `AWS4-HMAC-SHA256 Credential=${requireEnv("AWS_ACCESS_KEY_ID")}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
   };
+}
+
+export function getDocumentObject(key: string): Promise<Buffer> {
+  const bucket = requireEnv("AWS_S3_BUCKET");
+  const path = `/${bucket}/${encodeS3Key(key)}`;
+  const { host, amzDate, payloadHash, authorization } = signGetRequest(path);
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: host,
+        method: "GET",
+        path,
+        headers: {
+          "X-Amz-Date": amzDate,
+          "X-Amz-Content-Sha256": payloadHash,
+          Authorization: authorization,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(Buffer.concat(chunks));
+            return;
+          }
+
+          reject(new Error(Buffer.concat(chunks).toString("utf8") || `S3 GET status ${res.statusCode}`));
+        });
+      },
+    );
+
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 export function putDocumentObject(
