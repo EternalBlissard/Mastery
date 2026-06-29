@@ -1,0 +1,24 @@
+{
+  "name": "mastery",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "migrate": "node --env-file=.env scripts/migrate.mjs",
+    "db:health": "node --env-file=.env scripts/data-api-health.mjs",
+    "db:data-api-health": "node --env-file=.env scripts/data-api-health.mjs"
+  },
+  "dependencies": {
+    "next": "^16.2.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  }
+}
