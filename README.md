@@ -8,6 +8,8 @@ PostgreSQL database.
 > **H0: Hack the Zero Stack with Vercel v0 and AWS Databases**
 > **Track 1 — Monetizable B2C** · **AWS Database: Amazon Aurora PostgreSQL (with `pgvector`)** ·
 > **Front end deployed on Vercel** · `#H0Hackathon`
+>
+> **Live:** https://mastery-black-three.vercel.app/
 
 ---
 
@@ -174,11 +176,11 @@ See [`docs/demo.md`](docs/demo.md) for the pinned demo PDF and the cold demo cli
 - **AWS Database:** Amazon Aurora PostgreSQL (with `pgvector`).
 - **Track:** 1 — Monetizable B2C.
 - **Demo video (< 3 min):** `<YouTube link>`
-- **Live Vercel project:** `<https://…vercel.app>`
-- **Vercel Team ID:** `<team_…>`
-- **Architecture diagram:** see the Mermaid diagram above / `<diagram image link>`
-- **AWS Database proof:** `<screenshot — AWS Console Aurora cluster + schema + a pgvector query>`
-- **Bonus content:** `<blog/video link>` — published with `#H0Hackathon`
+- **Live Vercel project:** https://mastery-black-three.vercel.app/
+- **Vercel Team ID:** `team_bj9WL9lciIMxg91aBMWlBYv1`
+- **Architecture diagram:** see the Mermaid diagram above
+- **AWS Database proof:** AWS Console — Aurora PostgreSQL cluster `database-1` (Available) + a
+  `pgvector` query via CloudShell (`vector` extension present, 361 embedded chunks).
 
 ## Legal
 
