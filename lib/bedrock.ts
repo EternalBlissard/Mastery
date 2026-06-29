@@ -24,6 +24,13 @@ function hashHex(data: string): string {
   return crypto.createHash("sha256").update(data, "utf8").digest("hex");
 }
 
+function canonicalUri(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
 function signInvokeRequest(path: string, body: string) {
   const region = requireEnv("AWS_REGION");
   const host = `bedrock-runtime.${region}.amazonaws.com`;
@@ -33,7 +40,7 @@ function signInvokeRequest(path: string, body: string) {
   const payloadHash = hashHex(body);
   const canonicalHeaders = `content-type:application/json\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
   const signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
-  const canonicalRequest = ["POST", path, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const canonicalRequest = ["POST", canonicalUri(path), "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
   const credentialScope = `${dateStamp}/${region}/${SERVICE}/aws4_request`;
   const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, hashHex(canonicalRequest)].join("\n");
   const kDate = hmac(`AWS4${requireEnv("AWS_SECRET_ACCESS_KEY")}`, dateStamp);
