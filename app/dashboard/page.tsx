@@ -1,5 +1,6 @@
 "use client";
 
+import { MasteryNav } from "../components/MasteryNav";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 type DashboardObjective = {
@@ -88,11 +89,7 @@ export default function DashboardPage() {
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 920 }}>
-        <nav style={{ marginBottom: 40 }}>
-          <a href="/" style={{ color: "#93c5fd", fontSize: 14, textDecoration: "none" }}>
-            ← Back
-          </a>
-        </nav>
+        <MasteryNav activeHref="/dashboard" />
 
         <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
           PHASE 5 MASTERY

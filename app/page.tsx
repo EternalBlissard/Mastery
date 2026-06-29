@@ -1,8 +1,4 @@
-const stats = [
-  { label: "Aurora tables", value: "11", detail: "Normalized learning schema" },
-  { label: "Vector dim", value: "512", detail: "Titan V2 + pgvector" },
-  { label: "Demo goal", value: "CLF-C02", detail: "AWS Cloud Practitioner" },
-];
+import { MasteryNav } from "./components/MasteryNav";
 
 const flow = [
   "Pick AWS CLF-C02",
@@ -23,33 +19,7 @@ export default function HomePage() {
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 1120 }}>
-        <nav
-          style={{
-            alignItems: "center",
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 72,
-          }}
-        >
-          <strong style={{ fontSize: 22, letterSpacing: "-0.04em" }}>Mastery</strong>
-          <div style={{ alignItems: "center", display: "flex", gap: 18 }}>
-            <span style={{ color: "#93c5fd", fontSize: 14 }}>H0 MVP backend online</span>
-            <a
-              href="/upload"
-              style={{
-                background: "#38bdf8",
-                borderRadius: 10,
-                color: "#08111f",
-                fontSize: 14,
-                fontWeight: 800,
-                padding: "10px 14px",
-                textDecoration: "none",
-              }}
-            >
-              Upload PDF
-            </a>
-          </div>
-        </nav>
+        <MasteryNav marginBottom={72} />
 
         <div style={{ display: "grid", gap: 32, gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)" }}>
           <div>
@@ -86,7 +56,7 @@ export default function HomePage() {
                 Upload lecture PDF
               </a>
               <a
-                href="/api/health/db"
+                href="/goal"
                 style={{
                   border: "1px solid rgba(148, 163, 184, 0.32)",
                   borderRadius: 12,
@@ -96,7 +66,7 @@ export default function HomePage() {
                   textDecoration: "none",
                 }}
               >
-                Check database
+                Pick your cert goal
               </a>
             </div>
 
@@ -127,25 +97,44 @@ export default function HomePage() {
               padding: 28,
             }}
           >
-            <p style={{ color: "#94a3b8", marginTop: 0 }}>Phase 1 status</p>
-            <h2 style={{ fontSize: 28, letterSpacing: "-0.05em", marginTop: 0 }}>Data layer ready</h2>
+            <p style={{ color: "#94a3b8", marginTop: 0 }}>Simple pricing</p>
+            <h2 style={{ fontSize: 28, letterSpacing: "-0.05em", marginTop: 0 }}>Start free, upgrade when ready</h2>
             <div style={{ display: "grid", gap: 14, marginTop: 24 }}>
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  style={{
-                    background: "rgba(2, 6, 23, 0.58)",
-                    border: "1px solid rgba(148, 163, 184, 0.14)",
-                    borderRadius: 18,
-                    padding: 18,
-                  }}
-                >
-                  <div style={{ color: "#38bdf8", fontSize: 30, fontWeight: 800 }}>{stat.value}</div>
-                  <div style={{ fontWeight: 700 }}>{stat.label}</div>
-                  <div style={{ color: "#94a3b8", fontSize: 14 }}>{stat.detail}</div>
+              <div
+                style={{
+                  background: "rgba(2, 6, 23, 0.58)",
+                  border: "1px solid rgba(148, 163, 184, 0.14)",
+                  borderRadius: 18,
+                  padding: 18,
+                }}
+              >
+                <div style={{ color: "#38bdf8", fontSize: 30, fontWeight: 800 }}>Free</div>
+                <div style={{ fontWeight: 700 }}>Try the full flow</div>
+                <div style={{ color: "#94a3b8", fontSize: 14, marginTop: 6 }}>
+                  One cert goal, limited uploads, cited practice questions, and FSRS review — enough to see adaptive
+                  scheduling from your own materials.
                 </div>
-              ))}
+              </div>
+              <div
+                style={{
+                  background: "rgba(2, 6, 23, 0.58)",
+                  border: "1px solid rgba(56, 189, 248, 0.35)",
+                  borderRadius: 18,
+                  padding: 18,
+                }}
+              >
+                <div style={{ color: "#38bdf8", fontSize: 30, fontWeight: 800 }}>Pro ~$12–15/mo</div>
+                <div style={{ fontWeight: 700 }}>Unlimited prep depth</div>
+                <div style={{ color: "#94a3b8", fontSize: 14, marginTop: 6 }}>
+                  Multiple goals, unlimited PDFs, full dashboard readiness, and priority generation — built for
+                  serious cert timelines.
+                </div>
+              </div>
             </div>
+            <p style={{ color: "#64748b", fontSize: 13, lineHeight: 1.5, marginBottom: 0, marginTop: 20 }}>
+              B2B cohort analytics — team readiness, coverage gaps, and instructor dashboards — on the roadmap for
+              bootcamps and enterprise L&D.
+            </p>
           </aside>
         </div>
       </section>

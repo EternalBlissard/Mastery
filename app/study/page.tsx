@@ -1,5 +1,6 @@
 "use client";
 
+import { MasteryNav } from "../components/MasteryNav";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 type StudyItem = {
@@ -177,11 +178,7 @@ export default function StudyPage() {
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 820 }}>
-        <nav style={{ marginBottom: 40 }}>
-          <a href="/" style={{ color: "#93c5fd", fontSize: 14, textDecoration: "none" }}>
-            ← Back
-          </a>
-        </nav>
+        <MasteryNav activeHref="/study" />
 
         <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
           PHASE 3 STUDY
@@ -248,6 +245,25 @@ export default function StudyPage() {
           >
             {generating ? "Generating…" : "Generate questions"}
           </button>
+          <a
+            href={
+              userId.trim() && goalId.trim()
+                ? `/dashboard?userId=${encodeURIComponent(userId.trim())}&goalId=${encodeURIComponent(goalId.trim())}`
+                : "/dashboard"
+            }
+            style={{
+              alignSelf: "end",
+              background: "transparent",
+              border: "1px solid rgba(148, 163, 184, 0.35)",
+              borderRadius: 12,
+              color: "#cbd5e1",
+              fontWeight: 700,
+              padding: "12px 20px",
+              textDecoration: "none",
+            }}
+          >
+            View dashboard →
+          </a>
         </div>
 
         {error ? (
