@@ -1,4 +1,6 @@
 import { MasteryNav } from "./components/MasteryNav";
+import { MasteryTrustFooter } from "./components/MasteryTrustFooter";
+import { AnimatedProgressBar } from "./components/AnimatedProgressBar";
 
 const workflow = [
   { title: "Upload PDF", detail: "Drop your lecture notes" },
@@ -60,6 +62,7 @@ export default function HomePage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 40 }}>
               <a
                 href="/goal"
+                className="mastery-btn-primary"
                 style={{
                   background: "#34B8FF",
                   borderRadius: 14,
@@ -88,6 +91,7 @@ export default function HomePage() {
           </div>
 
           <aside
+            className="mastery-card"
             style={{
               background: "#101827",
               border: "1px solid rgba(255,255,255,.05)",
@@ -101,22 +105,8 @@ export default function HomePage() {
             <p style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.04em", margin: "0 0 4px" }}>
               17 cards due
             </p>
-            <div
-              style={{
-                background: "rgba(255,255,255,.06)",
-                borderRadius: 999,
-                height: 8,
-                margin: "20px 0",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  background: "#34B8FF",
-                  height: "100%",
-                  width: "74%",
-                }}
-              />
+            <div style={{ margin: "20px 0" }}>
+              <AnimatedProgressBar percent={74} />
             </div>
             <div style={{ display: "flex", gap: 24, marginBottom: 24 }}>
               <div>
@@ -169,6 +159,7 @@ export default function HomePage() {
             {workflow.map((step, index) => (
               <article
                 key={step.title}
+                className="mastery-card"
                 style={{
                   background: "#101827",
                   border: "1px solid rgba(255,255,255,.05)",
@@ -188,29 +179,111 @@ export default function HomePage() {
           </div>
         </section>
 
-        <footer
-          style={{
-            borderTop: "1px solid rgba(255,255,255,.05)",
-            color: "rgba(255,255,255,.45)",
-            fontSize: 13,
-            lineHeight: 1.6,
-            marginTop: 96,
-            paddingTop: 32,
-          }}
-        >
-          <p style={{ margin: "0 0 8px" }}>
-            AWS is a trademark of Amazon.com, Inc. Mastery is not affiliated with or endorsed by AWS.
-            No guaranteed exam success.
+        <section id="pricing" style={{ marginTop: 96, scrollMarginTop: 32 }}>
+          <h2
+            style={{
+              fontSize: 32,
+              fontWeight: 800,
+              letterSpacing: "-0.04em",
+              margin: "0 0 12px",
+            }}
+          >
+            Simple pricing
+          </h2>
+          <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, margin: "0 0 32px", maxWidth: 560 }}>
+            Start free with one certification goal. Upgrade when you need unlimited depth.
           </p>
-          <p style={{ margin: 0 }}>
-            <a href="/about" style={{ color: "rgba(255,255,255,.72)", marginRight: 16 }}>
-              About
-            </a>
-            <a href="/billing" style={{ color: "rgba(255,255,255,.72)" }}>
-              Pricing
-            </a>
-          </p>
-        </footer>
+          <div
+            style={{
+              display: "grid",
+              gap: 24,
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            }}
+          >
+            <article
+              className="mastery-card"
+              style={{
+                background: "#101827",
+                border: "1px solid rgba(255,255,255,.05)",
+                borderRadius: 20,
+                padding: 28,
+              }}
+            >
+              <p style={{ color: "#34B8FF", fontSize: 28, fontWeight: 800, margin: "0 0 8px" }}>Free</p>
+              <p style={{ fontWeight: 700, margin: "0 0 12px" }}>Perfect for one certification</p>
+              <ul
+                style={{
+                  color: "rgba(255,255,255,.72)",
+                  lineHeight: 1.8,
+                  margin: "0 0 24px",
+                  paddingLeft: 20,
+                }}
+              >
+                <li>One goal</li>
+                <li>Adaptive review</li>
+                <li>Question generation</li>
+              </ul>
+              <a
+                href="/goal"
+                className="mastery-btn"
+                style={{
+                  border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 14,
+                  color: "rgba(255,255,255,.85)",
+                  display: "inline-block",
+                  fontWeight: 700,
+                  padding: "12px 20px",
+                  textDecoration: "none",
+                }}
+              >
+                Start free
+              </a>
+            </article>
+            <article
+              className="mastery-card"
+              style={{
+                background: "#101827",
+                border: "1px solid rgba(52, 184, 255, 0.25)",
+                borderRadius: 20,
+                padding: 28,
+              }}
+            >
+              <p style={{ color: "#34B8FF", fontSize: 28, fontWeight: 800, margin: "0 0 8px" }}>
+                Pro ~$12–15/mo
+              </p>
+              <p style={{ fontWeight: 700, margin: "0 0 12px" }}>Unlimited everything</p>
+              <ul
+                style={{
+                  color: "rgba(255,255,255,.72)",
+                  lineHeight: 1.8,
+                  margin: "0 0 24px",
+                  paddingLeft: 20,
+                }}
+              >
+                <li>Unlimited PDFs</li>
+                <li>Unlimited goals</li>
+                <li>Priority generation</li>
+              </ul>
+              <a
+                href="/billing"
+                className="mastery-btn-primary"
+                style={{
+                  background: "#34B8FF",
+                  borderRadius: 14,
+                  color: "#07101D",
+                  display: "inline-block",
+                  fontWeight: 800,
+                  padding: "12px 20px",
+                  textDecoration: "none",
+                }}
+              >
+                Upgrade
+              </a>
+            </article>
+          </div>
+        </section>
+
+        <MasteryTrustFooter />
       </section>
     </main>
   );

@@ -1,0 +1,81 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.mastery-card {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.mastery-card:hover {
+  border-color: rgba(52, 184, 255, 0.2) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  transform: translateY(-2px);
+}
+
+.mastery-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.mastery-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px) scale(1.01);
+}
+
+.mastery-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.mastery-progress-fill {
+  background: #34b8ff;
+  border-radius: 999px;
+  height: 100%;
+  transition: width 400ms ease;
+}
+
+.mastery-progress-active .mastery-progress-fill {
+  animation: mastery-progress-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes mastery-progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(52, 184, 255, 0.55);
+  outline-offset: 2px;
+}

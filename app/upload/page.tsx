@@ -2,6 +2,7 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
 import {
   useCallback,
   useEffect,
@@ -191,6 +192,7 @@ export default function UploadPage() {
         <div
           role="button"
           tabIndex={0}
+          className="mastery-card"
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);
@@ -249,6 +251,7 @@ export default function UploadPage() {
 
         <button
           type="button"
+          className="mastery-btn-primary"
           onClick={() => void handleUpload()}
           disabled={uploading || !file}
           style={{
@@ -299,24 +302,11 @@ export default function UploadPage() {
               {humanProgressLabel(job?.step, job?.status)}
             </p>
 
-            <div
-              aria-label="Ingestion progress"
-              style={{
-                background: "rgba(2, 6, 23, 0.58)",
-                borderRadius: 999,
-                height: 12,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  background: isTerminal && job?.status === "error" ? "#f87171" : "#34B8FF",
-                  height: "100%",
-                  transition: "width 0.3s ease",
-                  width: `${Math.min(100, Math.max(0, progressPct))}%`,
-                }}
-              />
-            </div>
+            <AnimatedProgressBar
+              percent={progressPct}
+              active={!isTerminal}
+              height={12}
+            />
 
             <div
               style={{

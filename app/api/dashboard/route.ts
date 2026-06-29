@@ -89,6 +89,39 @@ function computeCoverage(rows: ObjectiveRow[]): number {
   return coveredCount / rows.length;
 }
 
+function toUtcDateKey(iso: string): string {
+  const d = new Date(iso);
+  return d.toISOString().slice(0, 10);
+}
+
+function computeStreak(reviewedAtValues: string[]): number {
+  if (reviewedAtValues.length === 0) {
+    return 0;
+  }
+
+  const uniqueDays = [...new Set(reviewedAtValues.map(toUtcDateKey))].sort().reverse();
+  const today = toUtcDateKey(new Date().toISOString());
+  const yesterday = toUtcDateKey(new Date(Date.now() - 86_400_000).toISOString());
+
+  if (uniqueDays[0] !== today && uniqueDays[0] !== yesterday) {
+    return 0;
+  }
+
+  let streak = 1;
+  for (let i = 1; i < uniqueDays.length; i += 1) {
+    const prev = new Date(`${uniqueDays[i - 1]}T00:00:00.000Z`);
+    const curr = new Date(`${uniqueDays[i]}T00:00:00.000Z`);
+    const diffDays = Math.round((prev.getTime() - curr.getTime()) / 86_400_000);
+    if (diffDays === 1) {
+      streak += 1;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
 export async function GET(request: Request) {
   try {
     const userId = await getOrCreateUser();
@@ -164,16 +197,32 @@ export async function GET(request: Request) {
         AND i.goal_id = '${goalId}'::uuid
     `);
 
+    const streakResult = await executeDataStatement(`
+      SELECT rl.reviewed_at
+      FROM review_log rl
+      JOIN items i ON i.id = rl.item_id
+      WHERE rl.user_id = '${userId}'::uuid
+        AND i.goal_id = '${goalId}'::uuid
+      ORDER BY rl.reviewed_at DESC
+      LIMIT 400
+    `);
+
+    const reviewedAtValues = (streakResult.records ?? [])
+      .map((row) => fieldString(row[0]))
+      .filter((value): value is string => Boolean(value));
+
     const overallReadiness = computeOverallReadiness(objectiveRows);
     const coverage = computeCoverage(objectiveRows);
     const dueToday = fieldInt(dueResult.records?.[0]?.[0]) ?? 0;
     const questionsCompleted = fieldInt(completedResult.records?.[0]?.[0]) ?? 0;
+    const currentStreak = computeStreak(reviewedAtValues);
 
     return Response.json({
       overallReadiness,
       dueToday,
       questionsCompleted,
       coverage,
+      currentStreak,
       objectives: objectiveRows.map(({ id, title, pKnown, covered }) => ({
         id,
         title,

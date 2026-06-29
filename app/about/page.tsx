@@ -1,4 +1,5 @@
 import { MasteryNav } from "../components/MasteryNav";
+import { MasteryTrustFooter } from "../components/MasteryTrustFooter";
 
 const cardStyle = {
   background: "#101827",
@@ -178,20 +179,9 @@ Study → FSRS scheduling + BKT mastery → Dashboard`}
           </article>
         </div>
 
-        <p
-          style={{
-            color: "rgba(255,255,255,.45)",
-            fontSize: 13,
-            lineHeight: 1.6,
-            margin: "40px 0 24px",
-          }}
-        >
-          AWS is a trademark of Amazon.com, Inc. Mastery is not affiliated with or endorsed by AWS. No guaranteed
-          exam success.
-        </p>
-
         <a
           href="/goal"
+          className="mastery-btn-primary"
           style={{
             background: "#34B8FF",
             borderRadius: 14,
@@ -199,12 +189,39 @@ Study → FSRS scheduling + BKT mastery → Dashboard`}
             display: "inline-block",
             fontSize: 16,
             fontWeight: 800,
+            marginTop: 40,
             padding: "14px 22px",
             textDecoration: "none",
           }}
         >
           Start demo →
         </a>
+
+        <section id="privacy" style={{ marginTop: 48, scrollMarginTop: 32 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Privacy</h2>
+          <p style={{ color: "rgba(255,255,255,.72)", lineHeight: 1.6, margin: 0 }}>
+            Your uploaded PDFs are stored for your study sessions only. You can delete documents at any time.
+            Mastery does not use your documents to train public models.
+          </p>
+        </section>
+
+        <section id="terms" style={{ marginTop: 32, scrollMarginTop: 32 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Terms</h2>
+          <p style={{ color: "rgba(255,255,255,.72)", lineHeight: 1.6, margin: 0 }}>
+            Mastery generates original practice questions grounded in your materials. It is a study aid, not an
+            official exam provider, and does not guarantee certification outcomes.
+          </p>
+        </section>
+
+        <section id="roadmap" style={{ marginTop: 32, scrollMarginTop: 32 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Roadmap</h2>
+          <p style={{ color: "rgba(255,255,255,.72)", lineHeight: 1.6, margin: 0 }}>
+            Coming next: additional AWS certifications, B2B cohort dashboards for bootcamps, and deeper instructor
+            analytics.
+          </p>
+        </section>
+
+        <MasteryTrustFooter marginTop={48} />
       </section>
     </main>
   );

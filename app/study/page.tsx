@@ -2,7 +2,8 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
-import { useCallback, useEffect, useState } from "react";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type StudyItem = {
   id: string;
@@ -227,6 +228,30 @@ export default function StudyPage() {
     [selections],
   );
 
+  const answeredCount = useMemo(
+    () => Object.values(submitted).filter(Boolean).length,
+    [submitted],
+  );
+
+  const sessionStats = useMemo(() => {
+    const results = Object.values(answerResults);
+    const correctCount = results.filter((r) => r.correct).length;
+    const total = items.length;
+    const percent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    const nextDueDates = results
+      .map((r) => r.nextDue)
+      .filter(Boolean)
+      .map((iso) => new Date(iso).getTime());
+    const earliestNext =
+      nextDueDates.length > 0 ? new Date(Math.min(...nextDueDates)) : null;
+
+    return { correctCount, total, percent, earliestNext };
+  }, [answerResults, items.length]);
+
+  const sessionComplete = items.length > 0 && answeredCount === items.length;
+  const minutesRemaining = Math.max(1, Math.ceil((items.length - answeredCount) * 0.75));
+  const sessionProgress = items.length > 0 ? Math.round((answeredCount / items.length) * 100) : 0;
+
   return (
     <main
       style={{
@@ -285,6 +310,44 @@ export default function StudyPage() {
           </button>
         </div>
 
+        {items.length > 0 ? (
+          <div
+            className="mastery-card"
+            style={{
+              background: "#101827",
+              border: "1px solid rgba(255,255,255,.05)",
+              borderRadius: 20,
+              marginBottom: 28,
+              padding: "20px 24px",
+            }}
+          >
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <p style={{ fontWeight: 700, margin: 0 }}>
+                Today&apos;s goal — {items.length} review{items.length === 1 ? "" : "s"}
+              </p>
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 14, margin: 0 }}>
+                ~{minutesRemaining} min remaining
+              </p>
+            </div>
+            <AnimatedProgressBar
+              percent={sessionProgress}
+              active={answeredCount < items.length}
+            />
+            <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: "10px 0 0" }}>
+              {answeredCount} of {items.length} answered
+            </p>
+          </div>
+        ) : null}
+
         {error ? (
           <p style={{ color: "#f87171", marginBottom: 24 }} role="alert">
             {error}
@@ -325,6 +388,66 @@ export default function StudyPage() {
           </div>
         ) : null}
 
+        {sessionComplete ? (
+          <div
+            className="mastery-card"
+            style={{
+              background: "#161F31",
+              border: "1px solid rgba(52, 184, 255, 0.25)",
+              borderRadius: 20,
+              marginBottom: 32,
+              padding: 28,
+            }}
+          >
+            <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
+              SESSION COMPLETE
+            </p>
+            <p style={{ fontSize: 24, fontWeight: 800, margin: "0 0 16px" }}>Nice work today</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 16 }}>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Questions</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>{sessionStats.total}</p>
+              </div>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Correct</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>
+                  {sessionStats.correctCount}
+                </p>
+              </div>
+              <div>
+                <p style={{ color: "rgba(255,255,255,.45)", fontSize: 12, margin: 0 }}>Score</p>
+                <p style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0" }}>{sessionStats.percent}%</p>
+              </div>
+            </div>
+            <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>
+              Next review:{" "}
+              <strong>
+                {sessionStats.earliestNext
+                  ? sessionStats.earliestNext.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "scheduled after your first answers"}
+              </strong>
+            </p>
+            <a
+              href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId)}` : "/dashboard"}
+              className="mastery-btn-primary"
+              style={{
+                background: "#34B8FF",
+                borderRadius: 14,
+                color: "#07101D",
+                display: "inline-block",
+                fontWeight: 800,
+                padding: "12px 20px",
+                textDecoration: "none",
+              }}
+            >
+              View readiness →
+            </a>
+          </div>
+        ) : null}
+
         <div style={{ display: "grid", gap: 24 }}>
           {items.map((item, index) => {
             const isSubmitted = submitted[item.id] === true;
@@ -336,6 +459,7 @@ export default function StudyPage() {
             return (
               <article
                 key={item.id}
+                className="mastery-card"
                 style={{
                   background: "rgba(15, 23, 42, 0.82)",
                   border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -431,6 +555,7 @@ export default function StudyPage() {
                         <button
                           key={option.value}
                           type="button"
+                          className="mastery-btn-primary"
                           onClick={() => void handleSubmit(item.id, option.value)}
                           disabled={!selected || isSubmitting}
                           style={{

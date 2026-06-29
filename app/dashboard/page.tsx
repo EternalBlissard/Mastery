@@ -2,6 +2,7 @@
 
 import { MasteryNav } from "../components/MasteryNav";
 import GoalSelect from "../components/GoalSelect";
+import { AnimatedProgressBar } from "../components/AnimatedProgressBar";
 import { useCallback, useEffect, useState } from "react";
 
 type DashboardObjective = {
@@ -16,6 +17,7 @@ type DashboardData = {
   dueToday: number;
   questionsCompleted: number;
   coverage: number;
+  currentStreak: number;
   objectives: DashboardObjective[];
 };
 
@@ -179,6 +181,11 @@ export default function DashboardPage() {
                 value={formatPercent(data.coverage)}
                 detail="Objectives with practice questions from your PDF"
               />
+              <MetricCard
+                label="Current streak"
+                value={`${data.currentStreak ?? 0} day${(data.currentStreak ?? 0) === 1 ? "" : "s"}`}
+                detail="Consecutive days with at least one review"
+              />
             </div>
 
             <h2 style={{ fontSize: 22, letterSpacing: "-0.04em", margin: "0 0 16px" }}>
@@ -258,6 +265,7 @@ function MetricCard({
 }) {
   return (
     <div
+      className="mastery-card"
       style={{
         background: "rgba(15, 23, 42, 0.82)",
         border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -277,6 +285,7 @@ function ObjectiveRow({ objective }: { objective: DashboardObjective }) {
 
   return (
     <article
+      className="mastery-card"
       style={{
         background: "rgba(15, 23, 42, 0.82)",
         border: "1px solid rgba(148, 163, 184, 0.24)",
@@ -326,18 +335,10 @@ function ObjectiveRow({ objective }: { objective: DashboardObjective }) {
             border: "1px solid rgba(148, 163, 184, 0.18)",
             borderRadius: 999,
             flex: 1,
-            height: 10,
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              background: "linear-gradient(90deg, #34B8FF, #4ade80)",
-              borderRadius: 999,
-              height: "100%",
-              width: `${barWidth}%`,
-            }}
-          />
+          <AnimatedProgressBar percent={barWidth} height={10} />
         </div>
         <span style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700, minWidth: 40 }}>
           {formatPercent(objective.pKnown)}
