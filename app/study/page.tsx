@@ -39,11 +39,22 @@ type GenerateResponse = {
 
 const TARGET_GENERATED_QUESTIONS = 16;
 
+const RATING_OPTIONS = [
+  { value: 1, label: "Again", hint: "Forgot it" },
+  { value: 2, label: "Hard", hint: "Struggled" },
+  { value: 3, label: "Good", hint: "Got it" },
+  { value: 4, label: "Easy", hint: "Knew it well" },
+] as const;
+
 function formatDue(iso: string | null): string {
   if (!iso) {
-    return "never scheduled";
+    return "not scheduled";
   }
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export default function StudyPage() {
@@ -173,14 +184,11 @@ export default function StudyPage() {
   );
 
   const handleSubmit = useCallback(
-    async (itemId: string) => {
+    async (itemId: string, rating: number) => {
       const selectedKey = selections[itemId];
       if (!selectedKey) {
         return;
       }
-
-      const startedAt = questionStartedAt[itemId] ?? Date.now();
-      const responseMs = Date.now() - startedAt;
 
       setSubmitting((prev) => ({ ...prev, [itemId]: true }));
       setError(null);
@@ -192,7 +200,7 @@ export default function StudyPage() {
           body: JSON.stringify({
             itemId,
             selectedKey,
-            responseMs,
+            rating,
           }),
         });
         const body = (await res.json()) as AnswerResult & { error?: string };
@@ -216,7 +224,7 @@ export default function StudyPage() {
         setSubmitting((prev) => ({ ...prev, [itemId]: false }));
       }
     },
-    [questionStartedAt, selections],
+    [selections],
   );
 
   return (
@@ -225,20 +233,17 @@ export default function StudyPage() {
         minHeight: "100vh",
         padding: "48px 24px",
         background:
-          "radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32rem), #08111f",
+          "radial-gradient(circle at top left, rgba(52, 184, 255, 0.18), transparent 32rem), #07101D",
       }}
     >
       <section style={{ margin: "0 auto", maxWidth: 820 }}>
         <MasteryNav activeHref="/study" />
 
-        <p style={{ color: "#38bdf8", fontSize: 14, fontWeight: 700, letterSpacing: "0.12em" }}>
-          PHASE 3 STUDY
-        </p>
-        <h1 style={{ fontSize: 40, letterSpacing: "-0.06em", margin: "12px 0 8px" }}>
-          Cited practice questions
+        <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.05em", margin: "0 0 8px" }}>
+          Study session
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: 32 }}>
-          Load generated MCQs for a goal. Each question cites the source PDF page.
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 18, lineHeight: 1.6, marginBottom: 32 }}>
+          Answer practice questions. Every card cites the source page in your notes.
         </p>
 
         <div style={{ marginBottom: 16 }}>
@@ -251,28 +256,26 @@ export default function StudyPage() {
             onClick={() => void loadItems(goalId)}
             disabled={loading || generating || !goalId.trim()}
             style={{
-              alignSelf: "end",
-              background: loading ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
-              border: "none",
-              borderRadius: 12,
-              color: "#08111f",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,.12)",
+              borderRadius: 14,
+              color: "rgba(255,255,255,.72)",
               cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
             }}
           >
-            {loading ? "Loading…" : "Load items"}
+            {loading ? "Loading…" : "Refresh questions"}
           </button>
           <button
             type="button"
             onClick={() => void handleGenerate(goalId)}
             disabled={loading || generating || !goalId.trim()}
             style={{
-              alignSelf: "end",
               background: "transparent",
-              border: "1px solid rgba(56, 189, 248, 0.6)",
-              borderRadius: 12,
-              color: "#7dd3fc",
+              border: "1px solid rgba(52, 184, 255, 0.35)",
+              borderRadius: 14,
+              color: "#34B8FF",
               cursor: loading || generating || !goalId.trim() ? "not-allowed" : "pointer",
               fontWeight: 700,
               padding: "12px 20px",
@@ -280,21 +283,6 @@ export default function StudyPage() {
           >
             {generating ? "Generating…" : "Generate questions"}
           </button>
-          <a
-            href={goalId.trim() ? `/dashboard?goalId=${encodeURIComponent(goalId.trim())}` : "/dashboard"}
-            style={{
-              alignSelf: "end",
-              background: "transparent",
-              border: "1px solid rgba(148, 163, 184, 0.35)",
-              borderRadius: 12,
-              color: "#cbd5e1",
-              fontWeight: 700,
-              padding: "12px 20px",
-              textDecoration: "none",
-            }}
-          >
-            View dashboard →
-          </a>
         </div>
 
         {error ? (
@@ -304,10 +292,37 @@ export default function StudyPage() {
         ) : null}
 
         {!loading && !generating && !error && goalId.trim() && items.length === 0 ? (
-          <p style={{ color: "#94a3b8" }}>
-            No MCQs found for this goal yet. Generation may still be running after upload — wait a moment
-            and press <strong>Load items</strong>, or press <strong>Generate questions</strong> to build them now.
-          </p>
+          <div
+            style={{
+              background: "#101827",
+              border: "1px solid rgba(255,255,255,.05)",
+              borderRadius: 20,
+              marginBottom: 32,
+              padding: 32,
+              textAlign: "center",
+            }}
+          >
+            <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Nothing due today.</p>
+            <p style={{ color: "rgba(255,255,255,.72)", margin: "0 0 20px" }}>
+              Generate more questions from your upload, or come back tomorrow.
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleGenerate(goalId)}
+              disabled={generating}
+              style={{
+                background: "#34B8FF",
+                border: "none",
+                borderRadius: 14,
+                color: "#07101D",
+                cursor: generating ? "not-allowed" : "pointer",
+                fontWeight: 800,
+                padding: "14px 22px",
+              }}
+            >
+              Generate questions
+            </button>
+          </div>
         ) : null}
 
         <div style={{ display: "grid", gap: 24 }}>
@@ -407,24 +422,35 @@ export default function StudyPage() {
                 </fieldset>
 
                 {!isSubmitted ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmit(item.id)}
-                    disabled={!selected || isSubmitting}
-                    style={{
-                      background:
-                        !selected || isSubmitting ? "rgba(56, 189, 248, 0.35)" : "#38bdf8",
-                      border: "none",
-                      borderRadius: 12,
-                      color: "#08111f",
-                      cursor: !selected || isSubmitting ? "not-allowed" : "pointer",
-                      fontWeight: 700,
-                      marginTop: 18,
-                      padding: "12px 18px",
-                    }}
-                  >
-                    {isSubmitting ? "Saving…" : "Check answer"}
-                  </button>
+                  <div style={{ marginTop: 20 }}>
+                    <p style={{ color: "rgba(255,255,255,.72)", fontSize: 14, margin: "0 0 12px" }}>
+                      How well did you know this?
+                    </p>
+                    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+                      {RATING_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => void handleSubmit(item.id, option.value)}
+                          disabled={!selected || isSubmitting}
+                          style={{
+                            background: !selected || isSubmitting ? "rgba(52, 184, 255, 0.12)" : "#34B8FF",
+                            border: "none",
+                            borderRadius: 12,
+                            color: !selected || isSubmitting ? "rgba(255,255,255,.45)" : "#07101D",
+                            cursor: !selected || isSubmitting ? "not-allowed" : "pointer",
+                            fontWeight: 800,
+                            padding: "12px 10px",
+                          }}
+                        >
+                          <span style={{ display: "block" }}>{option.label}</span>
+                          <span style={{ display: "block", fontSize: 11, fontWeight: 600, marginTop: 2, opacity: 0.8 }}>
+                            {option.hint}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
                   <aside
                     style={{
@@ -445,9 +471,25 @@ export default function StudyPage() {
                       {isCorrect ? "Correct" : `Incorrect — answer is ${item.answer_key}`}
                     </p>
                     {result ? (
-                      <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 8px" }}>
-                        Next review: {formatDue(result.nextDue)} (was {formatDue(result.previousDue)})
-                      </p>
+                      <div
+                        style={{
+                          background: "rgba(52, 184, 255, 0.08)",
+                          border: "1px solid rgba(52, 184, 255, 0.25)",
+                          borderRadius: 12,
+                          marginBottom: 12,
+                          padding: 14,
+                        }}
+                      >
+                        <p style={{ color: "#34B8FF", fontSize: 13, fontWeight: 700, margin: "0 0 6px" }}>
+                          Adaptive review scheduled
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,.85)", fontSize: 15, margin: "0 0 4px" }}>
+                          Next review: <strong>{formatDue(result.nextDue)}</strong>
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13, margin: 0 }}>
+                          Previously: {formatDue(result.previousDue)}
+                        </p>
+                      </div>
                     ) : null}
                     {item.explanation ? (
                       <p style={{ color: "#cbd5e1", lineHeight: 1.6, margin: 0 }}>
