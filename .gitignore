@@ -1,1 +1,4 @@
 .env
+.loop/
+node_modules/
+.next/
