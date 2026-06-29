@@ -20,7 +20,7 @@ flowchart LR
   Chunk --> Embed["embedText<br/>Titan V2 @512"]
   Embed --> Chunks["chunks rows<br/>+ pgvector"]
   Process -->|UPDATE| Jobs
-  Cron["Vercel Cron<br/>*/5 min"] -->|Bearer CRON_SECRET| CronRoute["/api/cron/process"]
+  Cron["External scheduler<br/>QStash */5 min"] -->|Bearer CRON_SECRET| CronRoute["/api/cron/process"]
   CronRoute -->|re-queue stuck| Jobs
   CronRoute -->|POST documentId| Process
   UI -->|GET every 2s| JobAPI["/api/jobs/[id]"]
@@ -31,7 +31,7 @@ flowchart LR
 
 1. **Upload** (`POST /api/upload`) — Client sends `file`, `userId`, and `goalId`. The route hashes the PDF, uploads to S3 (`documents/{documentId}/{filename}`), inserts `documents` and `ingestion_jobs` rows (both `queued`), then schedules processing with Next.js `after()` and returns `{ documentId, jobId }` without waiting for parse or embed.
 2. **Async worker** (`POST /api/process`) — Loads the queued job, fetches the PDF from S3, chunks text, embeds each chunk, and inserts into `chunks`. Updates `ingestion_jobs.status`, `step`, and `progress_pct` throughout.
-3. **Cron safety net** (`GET /api/cron/process`, every 5 minutes) — Requires `Authorization: Bearer <CRON_SECRET>`. Selects jobs that are `queued` or `processing` with `updated_at` older than 5 minutes; resets stuck `processing` jobs to `queued`, then POSTs `/api/process` for each `documentId`.
+3. **Scheduler safety net** (`POST /api/cron/process`, every 5 minutes from QStash or another external scheduler) — Requires `Authorization: Bearer <CRON_SECRET>`. Selects jobs that are `queued` or `processing` with `updated_at` older than 5 minutes; resets stuck `processing` jobs to `queued`, then POSTs `/api/process` for each `documentId`. `GET` is also supported for manual checks.
 4. **UI polling** (`GET /api/jobs/[id]`) — Upload page polls every 2 seconds for `{ status, step, progressPct }` until `done` or `error`.
 
 ## Long-running job pattern
@@ -42,7 +42,7 @@ Serverless uploads cannot block on PDF parsing and Bedrock embedding. Phase 2 us
 |-----------|------|
 | `ingestion_jobs` table | Durable queue and progress store (`status`, `step`, `progress_pct`, `error`) |
 | Next.js `after()` | Immediate, non-blocking kickoff from `/api/upload` to `/api/process` |
-| Vercel Cron (`*/5 * * * *`) | Retries `queued` jobs and recovers jobs stuck in `processing` |
+| External scheduler, for example QStash (`*/5 * * * *`) | Retries `queued` jobs and recovers jobs stuck in `processing` |
 
 **Idempotency:** Migration `0002_ingestion.sql` adds `chunk_index` and unique index `uq_chunks_doc_idx` on `(document_id, chunk_index)`. The worker inserts chunks with `ON CONFLICT (document_id, chunk_index) DO NOTHING`, so duplicate worker runs (e.g. cron + `after()` race, or retry after a partial embed) do not create duplicate chunks or fail the job.
 
@@ -86,7 +86,7 @@ Credentials: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (no hard
 | `/api/upload` | POST | S3 put + DB rows + async process trigger |
 | `/api/process` | POST | Body: `{ documentId }` — worker |
 | `/api/jobs/[id]` | GET | Job status for UI |
-| `/api/cron/process` | GET | Cron recovery (guarded) |
+| `/api/cron/process` | POST or GET | Scheduler recovery (guarded) |
 
 ## Environment variables
 
@@ -95,8 +95,8 @@ See `.env.example` for the full list. Phase 2 ingestion requires:
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 - `AWS_S3_BUCKET`
 - `BEDROCK_EMBEDDING_MODEL`
-- `CRON_SECRET` (Vercel Cron `Authorization` header)
-- Aurora Data API vars from Phase 1 (`AURORA_RESOURCE_ARN`, `AURORA_SECRET_ARN`, `AURORA_DATABASE`)
+- `CRON_SECRET` (external scheduler `Authorization` header)
+- Aurora Data API vars from Phase 1 (`RDS_RESOURCE_ARN`, `RDS_SECRET_ARN`, `RDS_DATABASE`)
 
 ## Database (migration 0002)
 
