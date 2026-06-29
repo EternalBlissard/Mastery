@@ -148,16 +148,20 @@ export async function GET(request: Request) {
 
     const dueResult = await executeDataStatement(`
       SELECT COUNT(*)::bigint AS due_today
-      FROM review_state
-      WHERE user_id = '${userId}'::uuid
-        AND due IS NOT NULL
-        AND due <= now()
+      FROM review_state rs
+      JOIN items i ON i.id = rs.item_id
+      WHERE rs.user_id = '${userId}'::uuid
+        AND i.goal_id = '${goalId}'::uuid
+        AND rs.due IS NOT NULL
+        AND rs.due <= now()
     `);
 
     const completedResult = await executeDataStatement(`
       SELECT COUNT(*)::bigint AS questions_completed
-      FROM review_log
-      WHERE user_id = '${userId}'::uuid
+      FROM review_log rl
+      JOIN items i ON i.id = rl.item_id
+      WHERE rl.user_id = '${userId}'::uuid
+        AND i.goal_id = '${goalId}'::uuid
     `);
 
     const overallReadiness = computeOverallReadiness(objectiveRows);
