@@ -1,4 +1,5 @@
 import { executeDataStatement } from "../../../db/data-api";
+import { applyMasteryUpdate } from "../../../lib/bkt";
 import { Rating, ratingFromAnswer, scheduleNext, type PrevState } from "../../../lib/fsrs";
 
 export const runtime = "nodejs";
@@ -105,12 +106,13 @@ export async function POST(request: Request) {
     }
 
     const itemResult = await executeDataStatement(`
-      SELECT answer_key
+      SELECT answer_key, objective_id
       FROM items
       WHERE id = '${itemId}'::uuid
       LIMIT 1
     `);
     const answerKey = fieldString(itemResult.records?.[0]?.[0]);
+    const objectiveId = fieldString(itemResult.records?.[0]?.[1]);
     if (!answerKey) {
       return Response.json({ error: "Item not found" }, { status: 404 });
     }
@@ -204,6 +206,14 @@ export async function POST(request: Request) {
         ${elapsedDays}
       )
     `);
+
+    if (objectiveId) {
+      try {
+        await applyMasteryUpdate(userId, objectiveId, correct);
+      } catch {
+        // best-effort: mastery update must not break scheduling response
+      }
+    }
 
     return Response.json({
       previousDue,
