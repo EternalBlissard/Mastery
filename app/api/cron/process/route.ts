@@ -24,7 +24,7 @@ function processUrl(request: Request): string {
   return "http://localhost:3000/api/process";
 }
 
-export async function GET(request: Request) {
+async function triggerQueuedIngestionJobs(request: Request) {
   if (!verifyCronSecret(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -66,4 +66,12 @@ export async function GET(request: Request) {
     const message = error instanceof Error ? error.message : "Cron processing failed";
     return Response.json({ error: message }, { status: 500 });
   }
+}
+
+export async function GET(request: Request) {
+  return triggerQueuedIngestionJobs(request);
+}
+
+export async function POST(request: Request) {
+  return triggerQueuedIngestionJobs(request);
 }
